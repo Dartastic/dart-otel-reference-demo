@@ -136,11 +136,15 @@ treating any later claim as a description of the current code.
 
 ### Not yet shipped
 
-- **Cloud Run deployment** (`deploy/cloudrun/`). Same Dockerfiles
-  apply; what's missing is the `gcloud run deploy` shell scripts,
-  the env configuration for Google Cloud Operations as the OTel
-  backend, and the design notes on Cloud Run-to-Cloud Run direct
-  invocation auth.
+- **Cloud Run deployment, Phase 2 + 3.** Phase 1 of
+  `deploy/cloudrun/` ships the `gcloud run deploy` scripts and env
+  YAML for `weather-api` and `cache-service`, plus the
+  Cloud-Operations / external-OTLP / LGTM-on-Cloud-Run options
+  documented in the deploy README. Still ahead: Phase 2 service-
+  to-service auth (`weather_client` `tokenProvider:` extension +
+  `cache-service` IAM lockdown) and Phase 3 LGTM-on-Cloud-Run
+  (multi-port story to be picked from the options enumerated in
+  the deploy README).
 - **Cloud Functions Gen 2 deployment** (`deploy/functions/`).
   Most divergent of the three targets — different bootstrap, no
   long-running process, function-termination signal instead of
@@ -211,7 +215,7 @@ dashboards/
   grafana/             pre-built Grafana dashboard JSON, auto-loaded into the local stack
 deploy/
   local/               docker-compose for app + Grafana LGTM
-  cloudrun/            Cloud Run deployment manifests           [pending]
+  cloudrun/            Cloud Run deploy scripts + env YAML; Phase 1 (services); Phase 2/3 pending
   functions/           Firebase Functions config                [pending]
 ```
 

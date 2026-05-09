@@ -28,3 +28,7 @@ Thumbs.db
 
 # Cloud Run / Docker scratch
 .gcloud/
+
+# Cloud Run deploy config — project IDs and per-reader values
+# stay local; config.example.sh is the committed template.
+deploy/cloudrun/config.sh
