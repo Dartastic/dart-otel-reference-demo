@@ -1,0 +1,24 @@
+# Dart pub workspace root.
+#
+# Members listed below share a single .dart_tool/, a single pubspec.lock, and
+# resolve dependencies together. Run `dart pub get` once at the workspace
+# root to bootstrap every member.
+#
+# https://dart.dev/tools/pub/workspaces
+#
+# Additional packages are added to this list as they are created; see
+# DESIGN.md for the full planned layout.
+name: _dart_otel_demo_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+
+workspace:
+  - packages/weather_core
+  - packages/weather_client
+  - packages/weather_http_kit
+  - packages/weather_otel
+  - services/weather_api
+  - services/cache_service
+  - apps/weather_cli

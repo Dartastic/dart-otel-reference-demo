@@ -1,0 +1,30 @@
+# Dart / Pub
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# IDE
+*.iml
+.idea/
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local env / secrets — the .env.example files are committed
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Firebase
+.firebaserc.local
+.firebase/
+
+# Cloud Run / Docker scratch
+.gcloud/

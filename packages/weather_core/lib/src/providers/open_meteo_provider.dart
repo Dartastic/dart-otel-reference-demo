@@ -1,0 +1,407 @@
+// Licensed under the Apache License, Version 2.0.
+// Copyright 2026, Mindful Software LLC.
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+// The SDK re-exports the full API surface: OTel and tracer primitives
+// (SpanKind, SpanStatusCode, etc.), the abstract instrument types
+// (APICounter, APIHistogram), and the semantic-convention enums
+// (HttpResource, UrlResource, ServerResource, ExceptionResource, etc.).
+// The API package is a transitive dependency.
+import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
+import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
+
+import '../instrumentation/weather_semantics.dart';
+import '../models/city.dart';
+import '../models/geocode_result.dart';
+import '../models/weather_forecast.dart';
+import 'weather_provider.dart';
+import 'weather_provider_exception.dart';
+
+/// Open-Meteo implementation of `WeatherProvider`.
+///
+/// Open-Meteo (<https://open-meteo.com>) is a free, no-API-key weather
+/// service appropriate for public demos. It provides separate endpoints
+/// for geocoding and forecast retrieval.
+///
+/// The constructor accepts an [http.Client] so consumers can inject the
+/// instrumented client from `weather_http_kit` (which adds W3C trace
+/// context propagation on outbound calls). Tests can inject a fake.
+///
+/// This class produces client spans for every upstream call and translates
+/// upstream errors into `WeatherProviderException` with appropriate
+/// `WeatherProviderErrorKind`s.
+class OpenMeteoProvider implements WeatherProvider {
+  /// Creates a provider that talks to Open-Meteo over [client].
+  ///
+  /// [timeout] is applied per upstream request. Defaults to 10 seconds, in
+  /// line with the OTel spec's recommended HTTP exporter timeout.
+  OpenMeteoProvider({
+    required http.Client client,
+    Duration timeout = const Duration(seconds: 10),
+    Uri? geocodingBaseUri,
+    Uri? forecastBaseUri,
+  }) : _client = client,
+       _timeout = timeout,
+       _geocodingBaseUri = geocodingBaseUri ?? _defaultGeocodingUri,
+       _forecastBaseUri = forecastBaseUri ?? _defaultForecastUri;
+
+  static final Uri _defaultGeocodingUri = Uri.parse(
+    'https://geocoding-api.open-meteo.com/v1/search',
+  );
+  static final Uri _defaultForecastUri = Uri.parse(
+    'https://api.open-meteo.com/v1/forecast',
+  );
+
+  static const _currentVariables =
+      'temperature_2m,apparent_temperature,relative_humidity_2m,'
+      'wind_speed_10m,wind_direction_10m,precipitation,weather_code,is_day';
+
+  static const _dailyVariables =
+      'weather_code,temperature_2m_min,temperature_2m_max,'
+      'precipitation_sum,precipitation_probability_max,'
+      'wind_speed_10m_max,uv_index_max,sunrise,sunset';
+
+  static const _maxForecastDays = 16;
+  static const _minForecastDays = 1;
+
+  final http.Client _client;
+  final Duration _timeout;
+  final Uri _geocodingBaseUri;
+  final Uri _forecastBaseUri;
+
+  static final Logger _log = Logger('weather_core.OpenMeteoProvider');
+
+  @override
+  String get name => 'open-meteo';
+
+  @override
+  Future<GeocodeResult> geocode(String query, {int maxResults = 5}) async {
+    if (query.trim().isEmpty) {
+      throw const WeatherProviderException(
+        kind: WeatherProviderErrorKind.badRequest,
+        message: 'geocode query must not be empty',
+        providerName: 'open-meteo',
+      );
+    }
+    if (maxResults < 1 || maxResults > 100) {
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.badRequest,
+        message: 'maxResults must be between 1 and 100, got $maxResults',
+        providerName: name,
+      );
+    }
+
+    final uri = _geocodingBaseUri.replace(
+      queryParameters: <String, String>{
+        'name': query,
+        'count': maxResults.toString(),
+        'language': 'en',
+        'format': 'json',
+      },
+    );
+
+    final span = OTel.tracer().startSpan(
+      'open-meteo geocode',
+      kind: SpanKind.client,
+      attributes: OTel.attributesFromMap(<String, Object>{
+        HttpResource.requestMethod.key: 'GET',
+        UrlResource.urlFull.key: uri.toString(),
+        ServerResource.serverAddress.key: uri.host,
+        WeatherSemantics.provider.key: name,
+        WeatherSemantics.operation.key: 'geocode',
+        // Free-text query is high-cardinality — span-only.
+        WeatherSemantics.geocodeQuery.key: query,
+        WeatherSemantics.geocodeMaxResults.key: maxResults,
+      }),
+    );
+
+    try {
+      return await OTel.tracer().withSpanAsync(span, () async {
+        final body = await _get(uri, span: span, operation: 'geocode');
+        final decoded = _decodeJson(body);
+
+        final rawResults = decoded['results'];
+        if (rawResults is! List) {
+          // Open-Meteo represents "no matches" as a 200 with no `results`
+          // key. This is not an exceptional condition.
+          span
+            ..addEvent(
+              OTel.spanEventNow(
+                'geocode.no_matches',
+                OTel.attributesFromMap(<String, Object>{
+                  WeatherSemantics.geocodeMatchCount.key: 0,
+                }),
+              ),
+            )
+            ..setStatus(SpanStatusCode.Ok);
+          return GeocodeResult(query: query, matches: const []);
+        }
+
+        final cities = <City>[];
+        for (final entry in rawResults) {
+          if (entry is Map<String, dynamic>) {
+            try {
+              cities.add(City.fromOpenMeteoJson(entry));
+            } on FormatException catch (e) {
+              // Skip malformed entries rather than failing the whole
+              // request; record an event so the issue is observable.
+              span.addEvent(
+                OTel.spanEventNow(
+                  'geocode.entry_skipped',
+                  OTel.attributesFromMap(<String, Object>{
+                    ExceptionResource.exceptionMessage.key: e.message,
+                  }),
+                ),
+              );
+            }
+          }
+        }
+
+        span
+          ..addAttributes(
+            OTel.attributesFromMap(<String, Object>{
+              WeatherSemantics.geocodeMatchCount.key: cities.length,
+              WeatherSemantics.geocodeAmbiguous.key: cities.length > 1,
+            }),
+          )
+          ..setStatus(SpanStatusCode.Ok);
+
+        return GeocodeResult(
+          query: query,
+          matches: List<City>.unmodifiable(cities),
+        );
+      });
+    } on WeatherProviderException catch (e, st) {
+      span
+        ..recordException(e, stackTrace: st)
+        ..setStatus(SpanStatusCode.Error, e.message);
+      rethrow;
+    } catch (e, st) {
+      span
+        ..recordException(e, stackTrace: st)
+        ..setStatus(SpanStatusCode.Error, e.toString());
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.unknown,
+        providerName: name,
+        message: 'Unexpected error during geocode: $e',
+        cause: e,
+        causeStackTrace: st,
+      );
+    } finally {
+      span.end();
+    }
+  }
+
+  @override
+  Future<WeatherForecast> getForecast({
+    required City city,
+    required int forecastDays,
+  }) async {
+    if (forecastDays < _minForecastDays || forecastDays > _maxForecastDays) {
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.badRequest,
+        message:
+            'forecastDays must be between $_minForecastDays and '
+            '$_maxForecastDays, got $forecastDays',
+        providerName: name,
+      );
+    }
+
+    final uri = _forecastBaseUri.replace(
+      queryParameters: <String, String>{
+        'latitude': city.latitude.toString(),
+        'longitude': city.longitude.toString(),
+        'current': _currentVariables,
+        'daily': _dailyVariables,
+        'forecast_days': forecastDays.toString(),
+        'timezone': 'auto',
+      },
+    );
+
+    final span = OTel.tracer().startSpan(
+      'open-meteo forecast',
+      kind: SpanKind.client,
+      attributes: OTel.attributesFromMap(<String, Object>{
+        HttpResource.requestMethod.key: 'GET',
+        UrlResource.urlFull.key: uri.toString(),
+        ServerResource.serverAddress.key: uri.host,
+        WeatherSemantics.provider.key: name,
+        WeatherSemantics.operation.key: 'forecast',
+        WeatherSemantics.cityId.key: city.id,
+        // City name is high-cardinality. Span attribute only.
+        WeatherSemantics.cityName.key: city.name,
+        // Country code is bounded (~250 values) — both span and metric safe.
+        WeatherSemantics.cityCountryCode.key: city.countryCode,
+        WeatherSemantics.forecastDays.key: forecastDays,
+      }),
+    );
+
+    try {
+      return await OTel.tracer().withSpanAsync(span, () async {
+        final body = await _get(uri, span: span, operation: 'forecast');
+        final decoded = _decodeJson(body);
+        final fetchedAt = DateTime.now().toUtc();
+
+        try {
+          final forecast = WeatherForecast.fromOpenMeteoJson(
+            city: city,
+            json: decoded,
+            fetchedAt: fetchedAt,
+          );
+          span
+            ..addAttributes(
+              OTel.attributesFromMap(<String, Object>{
+                WeatherSemantics.currentWeatherCode.key:
+                    forecast.current.weatherCode.code,
+                WeatherSemantics.currentSeverity.key:
+                    forecast.current.weatherCode.severity.name,
+                WeatherSemantics.currentIsDay.key: forecast.current.isDay,
+              }),
+            )
+            ..setStatus(SpanStatusCode.Ok);
+          return forecast;
+        } on FormatException catch (e, st) {
+          throw WeatherProviderException(
+            kind: WeatherProviderErrorKind.parse,
+            providerName: name,
+            message:
+                'Forecast response did not match expected schema: ${e.message}',
+            cause: e,
+            causeStackTrace: st,
+          );
+        }
+      });
+    } on WeatherProviderException catch (e, st) {
+      span
+        ..recordException(e, stackTrace: st)
+        ..setStatus(SpanStatusCode.Error, e.message);
+      rethrow;
+    } catch (e, st) {
+      span
+        ..recordException(e, stackTrace: st)
+        ..setStatus(SpanStatusCode.Error, e.toString());
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.unknown,
+        providerName: name,
+        message: 'Unexpected error during forecast: $e',
+        cause: e,
+        causeStackTrace: st,
+      );
+    } finally {
+      span.end();
+    }
+  }
+
+  /// Performs the HTTP GET, applies the timeout, classifies failures.
+  Future<String> _get(
+    Uri uri, {
+    required Span span,
+    required String operation,
+  }) async {
+    http.Response response;
+    try {
+      response = await _client.get(uri).timeout(_timeout);
+    } on TimeoutException catch (e, st) {
+      _log.warning('Open-Meteo $operation timed out after $_timeout', e, st);
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.network,
+        providerName: name,
+        message: 'Request to $uri timed out after $_timeout',
+        cause: e,
+        causeStackTrace: st,
+      );
+    } on SocketException catch (e, st) {
+      _log.warning('Open-Meteo $operation socket error', e, st);
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.network,
+        providerName: name,
+        message: 'Network error reaching ${uri.host}: ${e.message}',
+        cause: e,
+        causeStackTrace: st,
+      );
+    } on http.ClientException catch (e, st) {
+      _log.warning('Open-Meteo $operation HTTP client error', e, st);
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.network,
+        providerName: name,
+        message: 'HTTP client error reaching ${uri.host}: ${e.message}',
+        cause: e,
+        causeStackTrace: st,
+      );
+    }
+
+    span.addAttributes(
+      OTel.attributesFromMap(<String, Object>{
+        HttpResource.responseStatusCode.key: response.statusCode,
+        HttpResource.responseBodySize.key: response.bodyBytes.length,
+      }),
+    );
+
+    final status = response.statusCode;
+    if (status >= 200 && status < 300) {
+      return response.body;
+    }
+    if (status == 429) {
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.rateLimit,
+        providerName: name,
+        statusCode: status,
+        message: 'Rate-limited by ${uri.host}',
+      );
+    }
+    if (status >= 500) {
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.upstream,
+        providerName: name,
+        statusCode: status,
+        message: '${uri.host} returned $status: ${_truncate(response.body)}',
+      );
+    }
+    if (status == 404) {
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.notFound,
+        providerName: name,
+        statusCode: status,
+        message: 'Resource not found at $uri',
+      );
+    }
+    throw WeatherProviderException(
+      kind: WeatherProviderErrorKind.badRequest,
+      providerName: name,
+      statusCode: status,
+      message:
+          '${uri.host} rejected request ($status): '
+          '${_truncate(response.body)}',
+    );
+  }
+
+  Map<String, dynamic> _decodeJson(String body) {
+    final Object? decoded;
+    try {
+      decoded = json.decode(body);
+    } on FormatException catch (e, st) {
+      throw WeatherProviderException(
+        kind: WeatherProviderErrorKind.parse,
+        providerName: name,
+        message: 'Could not parse response body as JSON: ${e.message}',
+        cause: e,
+        causeStackTrace: st,
+      );
+    }
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    throw WeatherProviderException(
+      kind: WeatherProviderErrorKind.parse,
+      providerName: name,
+      message: 'Expected JSON object at top level, got ${decoded.runtimeType}',
+    );
+  }
+
+  static String _truncate(String s, {int max = 200}) =>
+      s.length <= max ? s : '${s.substring(0, max)}...';
+}

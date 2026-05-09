@@ -1,0 +1,22 @@
+# services/weather_api/.dockerignore — applied to the build context
+# (the repo root, since the Dockerfile is invoked from there).
+
+.git
+.dart_tool
+**/.dart_tool
+**/build
+**/coverage
+**/*.log
+**/test
+**/Dockerfile
+**/.dockerignore
+**/README.md
+**/CHANGELOG.md
+
+# Local IDE / OS noise
+.idea
+.vscode
+.DS_Store
+
+# Keep this directory's Dockerfile out of the build context — it is
+# read by Docker via -f and doesn't need to land inside the image.

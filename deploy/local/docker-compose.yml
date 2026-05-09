@@ -1,0 +1,178 @@
+# deploy/local/docker-compose.yml
+#
+# Local development stack: weather_api + cache_service + Grafana LGTM.
+#
+# What "LGTM" means: Loki (logs), Grafana (UI), Tempo (traces), Mimir
+# (metrics). The grafana/otel-lgtm image bundles all four behind a
+# single OpenTelemetry Collector listening on the standard OTLP ports.
+# It's intended for development and demos — production observability
+# uses each component separately and configured for scale.
+#
+# Bring the stack up:
+#
+#     docker compose -f deploy/local/docker-compose.yml up --build
+#
+# Or, from this directory:
+#
+#     docker compose up --build
+#
+# Or, easier:
+#
+#     tool/stack.sh up
+#
+# Once running:
+#   * Grafana dashboards: http://localhost:3000 (admin / admin)
+#   * weather_api:        http://localhost:8080
+#   * cache_service:      internal only (not exposed to the host)
+#
+# Send a test request:
+#
+#     curl -s 'http://localhost:8080/weather/Toulouse?days=3' | jq .
+#
+# Open Grafana → Explore → Tempo, search for service.name="weather-api"
+# and find the trace your curl produced — it should fan out across
+# weather-api → cache-service → open-meteo.
+#
+# Tear it all down:
+#
+#     docker compose down            # keeps the LGTM data volume
+#     docker compose down -v         # also wipes accumulated traces
+
+name: dart-otel-demo
+
+# ───────────────────────────────────────────────────────────────────
+# Services
+# ───────────────────────────────────────────────────────────────────
+services:
+
+  # ── Telemetry backend ──
+  # Pinned tag: pinning is intentional. ":latest" makes the demo
+  # behave differently as the upstream image changes underneath you,
+  # which is the worst kind of bug to debug. Bump this deliberately
+  # and re-test the full stack when upgrading.
+  lgtm:
+    image: grafana/otel-lgtm:0.11.10
+    container_name: dart-otel-demo-lgtm
+    ports:
+      - "3000:3000"   # Grafana UI
+      - "4317:4317"   # OTLP/gRPC ingress (also reachable from host
+                       # for local processes that aren't containerized)
+      - "4318:4318"   # OTLP/HTTP ingress
+    environment:
+      # Default credentials are admin / admin — kept as the upstream
+      # default so the docs and the running stack agree. Change in any
+      # context that's not "my laptop, behind my firewall."
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      # Persist Grafana dashboards, Tempo traces, Loki logs, and
+      # Mimir metrics across container restarts. `docker compose
+      # down` keeps this; `docker compose down -v` wipes it.
+      - lgtm-data:/data
+      # Dashboard provisioning. The grafana/otel-lgtm image's Grafana
+      # is built with `[paths] provisioning = conf/provisioning`, which
+      # resolves to /otel-lgtm/grafana/conf/provisioning — NOT the
+      # standard /etc/grafana/provisioning. The image ships its own
+      # grafana-dashboards.yaml at that path that registers the bundled
+      # RED + JVM dashboards. Mounting OUR provisioning YAML on top of
+      # that file replaces the image's default in one step: drops the
+      # JVM dashboard (Java-only, "No data" in a Dart stack), keeps
+      # both RED dashboards by their canonical /otel-lgtm/*.json paths,
+      # and adds the demo's 'Dart OTel Demo' folder/provider that
+      # picks up dashboards/grafana/json/*.json from the second mount.
+      - ../../dashboards/grafana/provisioning.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/grafana-dashboards.yaml:ro
+      - ../../dashboards/grafana/json:/var/lib/grafana/dashboards/dart-otel-demo:ro
+    healthcheck:
+      # /api/health on the Grafana port is the canonical "stack is
+      # ready" check. The container takes ~30-60s to fully start
+      # (Grafana, Loki, Tempo, Mimir, and the OTel collector all
+      # boot in sequence), so retries: 60 with 2s interval gives a
+      # ~2 minute window before failing.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health || exit 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+      start_period: 10s
+
+  # ── Forecast cache ──
+  # Internal service; no port exposed to the host. The only thing
+  # talking to it is weather-api, on the compose network.
+  cache-service:
+    build:
+      # Build context is the repository root because the Dockerfile
+      # COPYs the entire workspace (packages/, services/, apps/) for
+      # `dart pub get` to resolve. The `-f` argument selects the
+      # specific Dockerfile inside that context.
+      context: ../..
+      dockerfile: services/cache_service/Dockerfile
+    image: dart-otel-demo/cache-service:dev
+    container_name: dart-otel-demo-cache-service
+    ports:
+      # Admin port exposed to localhost so `curl -X POST
+      # http://localhost:8091/flush` works from the host. The cache
+      # service's main port (8090) stays internal — only weather-api
+      # talks to it.
+      - "127.0.0.1:8091:8091"
+    environment:
+      PORT: "8090"
+      OTEL_DEMO_MODE: "true"
+      ADMIN_HOST: "0.0.0.0"
+      ADMIN_PORT: "8091"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://lgtm:4317"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      # The endpoint URL scheme is `http://` so the connection is
+      # cleartext — but the Dartastic SDK's exporter doesn't infer
+      # `secure` from the URL scheme; without this flag it defaults
+      # to TLS and fails with HandshakeException against an OTLP
+      # ingress that doesn't terminate TLS.
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=local"
+    depends_on:
+      lgtm:
+        condition: service_healthy
+
+  # ── Public HTTP front door ──
+  weather-api:
+    build:
+      context: ../..
+      dockerfile: services/weather_api/Dockerfile
+    image: dart-otel-demo/weather-api:dev
+    container_name: dart-otel-demo-weather-api
+    ports:
+      - "8080:8080"
+      # Admin port for the flush endpoint, bound to localhost only.
+      # Symmetric with cache-service.
+      - "127.0.0.1:8081:8081"
+    environment:
+      PORT: "8080"
+      OTEL_DEMO_MODE: "true"
+      ADMIN_HOST: "0.0.0.0"
+      ADMIN_PORT: "8081"
+      # Service-to-service URL uses the compose service name as the
+      # hostname; Docker's embedded DNS resolves "cache-service" to
+      # the cache-service container's IP on the demo network.
+      WEATHER_UPSTREAM_URL: "http://cache-service:8090"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://lgtm:4317"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      # See note on cache-service above — the SDK doesn't infer
+      # `secure` from the endpoint URL scheme.
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=local"
+    depends_on:
+      lgtm:
+        condition: service_healthy
+      cache-service:
+        # service_started (not service_healthy) because cache-service
+        # has no curl in its runtime image to define a healthcheck
+        # against. weather-api dials cache-service per request, not
+        # at startup, so a small race window during bring-up is
+        # tolerable — failed exports retry and failed requests come
+        # from the user, not at startup.
+        condition: service_started
+
+# ───────────────────────────────────────────────────────────────────
+# Volumes
+# ───────────────────────────────────────────────────────────────────
+volumes:
+  lgtm-data:
+    name: dart-otel-demo-lgtm-data

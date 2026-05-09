@@ -1,0 +1,52 @@
+# Strict static-analysis configuration applied to every package in the
+# workspace. Individual packages may add their own analysis_options.yaml that
+# `include:`s this file and adds further rules.
+
+include: package:lints/recommended.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    # Treat the following as errors instead of warnings — they are real bugs
+    # in production code and should fail CI.
+    todo: ignore
+    missing_required_param: error
+    missing_return: error
+    invalid_assignment: error
+    avoid_dynamic_calls: error
+
+linter:
+  rules:
+    # Style and correctness rules that go beyond the recommended baseline.
+    always_declare_return_types: true
+    avoid_bool_literals_in_conditional_expressions: true
+    avoid_catching_errors: true
+    avoid_classes_with_only_static_members: false  # we use OTel-style static factories
+    avoid_dynamic_calls: true
+    avoid_empty_else: true
+    avoid_print: true                              # use package:logging instead
+    avoid_redundant_argument_values: true
+    avoid_slow_async_io: true
+    avoid_unused_constructor_parameters: true
+    cancel_subscriptions: true
+    close_sinks: true
+    comment_references: true
+    directives_ordering: true
+    omit_local_variable_types: true
+    prefer_const_constructors: true
+    prefer_const_declarations: true
+    prefer_const_literals_to_create_immutables: true
+    prefer_final_in_for_each: true
+    prefer_final_locals: true
+    prefer_relative_imports: true
+    prefer_single_quotes: true
+    sort_pub_dependencies: false                   # grouped manually for readability
+    test_types_in_equals: true
+    throw_in_finally: true
+    unawaited_futures: true
+    unnecessary_lambdas: true
+    unnecessary_parenthesis: true
+    use_super_parameters: true

@@ -1,0 +1,26 @@
+name: weather_client
+description: >-
+  HTTP client SDK for the demo's v1 weather API. Implements
+  WeatherProvider against a remote service (typically cache_service).
+  Used by services/weather_api as the upstream provider, and by
+  apps/weather_cli for direct CLI access. Independent of OpenTelemetry
+  setup — consumers pass an http.Client (often InstrumentedHttpClient).
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  weather_core:
+    path: ../weather_core
+
+  http: ^1.5.0
+  logging: ^1.3.0
+  meta: ^1.16.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0
+  dartastic_opentelemetry: ^1.1.0-beta

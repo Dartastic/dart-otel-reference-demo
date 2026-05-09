@@ -1,0 +1,28 @@
+name: weather_otel
+description: >-
+  Application-side OpenTelemetry bootstrap for the Dart OTel demo. Wraps
+  OTel.initialize with sensible defaults (BatchSpanProcessor, parent-based
+  ratio sampler, generated service.instance.id), installs SIGTERM /
+  SIGINT handlers for graceful shutdown, and exposes a demo-only admin
+  endpoint behind OTEL_DEMO_MODE for forced flush during throughput
+  demonstrations.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  # OpenTelemetry SDK. The bootstrap is a thin wrapper over OTel.initialize.
+  dartastic_opentelemetry: ^1.1.0-beta
+
+  # shelf is used only for the optional demo admin endpoint.
+  shelf: ^1.4.2
+
+  logging: ^1.3.0
+  meta: ^1.16.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0

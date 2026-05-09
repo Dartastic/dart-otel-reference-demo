@@ -1,0 +1,61 @@
+apiVersion: 1
+
+# Grafana dashboard provisioning for the local stack.
+#
+# This file REPLACES the grafana/otel-lgtm image's bundled
+# grafana-dashboards.yaml. We mount it on top of the image's default
+# at /otel-lgtm/grafana/conf/provisioning/dashboards/grafana-dashboards.yaml
+# (the path Grafana scans is set via the image's `[paths] provisioning`
+# config, which points there — NOT /etc/grafana/provisioning/dashboards,
+# which is the upstream Grafana default but is unused in this image).
+#
+# Two reasons we replace rather than augment:
+#
+#   1. Drops the bundled "JVM Overview (OpenTelemetry)" dashboard.
+#      It's a Java-specific dashboard that has no data points in a
+#      pure-Dart server stack — every panel reads "No data" and
+#      makes the demo look broken even when it isn't.
+#
+#   2. Adds the demo's "Dart OTel Demo" folder/provider so
+#      `dashboards/grafana/json/*.json` lands in its own folder in
+#      the Grafana UI. Tweaks made live in the UI survive container
+#      restarts (allowUiUpdates: true) but are wiped on
+#      `docker compose down -v`. To make a tweak permanent, export
+#      the dashboard from Grafana and replace the JSON file in this
+#      folder.
+#
+# Compose mount: deploy/local/docker-compose.yml binds this file at
+# /otel-lgtm/grafana/conf/provisioning/dashboards/grafana-dashboards.yaml
+# and binds dashboards/grafana/json/ at
+# /var/lib/grafana/dashboards/dart-otel-demo/.
+
+providers:
+  # Bundled with the otel-lgtm image — kept. Paths are the canonical
+  # locations inside the image and may move if the upstream image's
+  # layout changes; re-test the stack on every image bump.
+  - name: 'RED Metrics (classic histogram)'
+    type: file
+    options:
+      path: /otel-lgtm/grafana-dashboard-red-metrics-classic.json
+      foldersFromFilesStructure: false
+
+  - name: 'RED Metrics (exponential/native histogram)'
+    type: file
+    options:
+      path: /otel-lgtm/grafana-dashboard-red-metrics-native.json
+      foldersFromFilesStructure: false
+
+  # The demo's own dashboards. Folder UID is referenced by tests and
+  # docs that link straight to a panel — keep it stable across edits.
+  - name: 'Dart OTel Demo'
+    orgId: 1
+    folder: 'Dart OTel Demo'
+    folderUid: 'dart-otel-demo'
+    type: file
+    disableDeletion: false
+    editable: true
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards/dart-otel-demo
+      foldersFromFilesStructure: false

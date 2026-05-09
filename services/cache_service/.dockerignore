@@ -1,0 +1,18 @@
+# services/cache_service/.dockerignore — applied to the build context
+# (the repo root, since the Dockerfile is invoked from there).
+
+.git
+.dart_tool
+**/.dart_tool
+**/build
+**/coverage
+**/*.log
+**/test
+**/Dockerfile
+**/.dockerignore
+**/README.md
+**/CHANGELOG.md
+
+.idea
+.vscode
+.DS_Store

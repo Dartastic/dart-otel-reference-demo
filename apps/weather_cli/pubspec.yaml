@@ -1,0 +1,34 @@
+name: weather_cli
+description: >-
+  Command-line client for the demo's v1 weather API. Speaks to
+  weather_api (or, in tests, anything that implements the same v1
+  wire format) and prints a forecast. The third deployable binary in
+  the demo and the first non-server — closes the trace tree from a
+  user-initiated CLI invocation all the way to Open-Meteo.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  weather_core:
+    path: ../../packages/weather_core
+  weather_client:
+    path: ../../packages/weather_client
+  weather_http_kit:
+    path: ../../packages/weather_http_kit
+  weather_otel:
+    path: ../../packages/weather_otel
+
+  dartastic_opentelemetry: ^1.1.0-beta
+
+  args: ^2.5.0
+  http: ^1.5.0
+  logging: ^1.3.0
+  meta: ^1.16.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0
