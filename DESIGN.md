@@ -136,15 +136,17 @@ treating any later claim as a description of the current code.
 
 ### Not yet shipped
 
-- **Cloud Run deployment, Phase 2 + 3.** Phase 1 of
-  `deploy/cloudrun/` ships the `gcloud run deploy` scripts and env
-  YAML for `weather-api` and `cache-service`, plus the
-  Cloud-Operations / external-OTLP / LGTM-on-Cloud-Run options
-  documented in the deploy README. Still ahead: Phase 2 service-
-  to-service auth (`weather_client` `tokenProvider:` extension +
-  `cache-service` IAM lockdown) and Phase 3 LGTM-on-Cloud-Run
-  (multi-port story to be picked from the options enumerated in
-  the deploy README).
+- **Cloud Run service-to-service authentication.** The current
+  `deploy/cloudrun/` scripts deploy both `weather-api` and
+  `cache-service` `--allow-unauthenticated` so a single curl
+  drives the demo end to end. The remaining change locks
+  `cache-service` down with `--no-allow-unauthenticated`, grants
+  `weather-api`'s runtime service account `roles/run.invoker` on
+  it, and adds a small `tokenProvider:` extension to
+  `weather_client` so the outbound HTTP path attaches a service-
+  account ID token from the GCE metadata server (no-op locally,
+  metadata-server fetch on Cloud Run). The library change is
+  small but crosses a package boundary; checkpointed.
 - **Cloud Functions Gen 2 deployment** (`deploy/functions/`).
   Most divergent of the three targets — different bootstrap, no
   long-running process, function-termination signal instead of

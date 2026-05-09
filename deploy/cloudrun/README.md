@@ -6,12 +6,21 @@ Same Dockerfiles, same env-var-driven OTel configuration, same
 trace tree, same metric semconv. The runtime is selected by the
 deployment environment, not by the code.
 
-> **Status: Phase 1.** This phase ships the deploy scripts for
-> `weather-api` and `cache-service`. Both services are
-> `--allow-unauthenticated` for now so you can drive a request from
-> your laptop and see the trace tree end-to-end. Phases 2 and 3 add
-> service-to-service authentication and an OTLP-LGTM-on-Cloud-Run
-> backend; both are flagged inline below.
+> **Status.** Deploy scripts for `weather-api` and `cache-service`
+> ship today. Both services are `--allow-unauthenticated` for now
+> so you can drive a request from your laptop and see the trace
+> tree end-to-end. The remaining work — service-to-service
+> authentication that lets `cache-service` reject anything that
+> isn't `weather-api` — is described under
+> [Service-to-service authentication](#service-to-service-authentication-pending)
+> and is the next change to land.
+>
+> Telemetry on the Cloud Run path uses
+> [Google Cloud Operations](#option-a--google-cloud-operations-recommended)
+> (Cloud Trace + Cloud Logging + Cloud Monitoring). Grafana LGTM is
+> a local-stack convenience — running it on Cloud Run hits Cloud
+> Run's one-port-per-service constraint and isn't worth the moving
+> parts when GCP's native observability stack handles OTLP natively.
 
 ## Prerequisites
 
@@ -104,9 +113,12 @@ metrics by which one).
 
 The deploy scripts honor `OTEL_EXPORTER_OTLP_ENDPOINT` and
 `OTEL_EXPORTER_OTLP_PROTOCOL` from your `config.sh` — exactly the
-same env vars the local stack uses. Three reasonable choices on GCP:
+same env vars the local stack uses. Cloud Run is a managed runtime
+on a managed cloud, and the natural answer is the cloud's own
+observability stack rather than running a self-hosted
+Tempo/Mimir/Loki on top of it.
 
-### Option A — Google Cloud Operations (production-correct)
+### Option A — Google Cloud Operations (recommended)
 
 Cloud Trace, Cloud Monitoring, and Cloud Logging all accept OTLP
 directly. Spans land in Cloud Trace, metrics in Cloud Monitoring,
@@ -142,48 +154,52 @@ for role in roles/telemetry.tracesWriter \
 done
 ```
 
-This is the recommended option for any deployment that's not
-explicitly using Grafana for the demo's visualization.
+After a `curl` against the public weather-api URL, the trace tree
+shows up in
+[Cloud Trace's explorer][trace-explorer] keyed off
+`service.name=weather-api`. Click any span to see the full
+hierarchy and any logs Cloud Logging captured during the same trace.
 
-### Option B — Grafana LGTM on Cloud Run (Phase 3 — pending design review)
+### Option B — Dartastic Cloud
 
-Goal: keep the same Tempo / Mimir / Loki / Grafana surface as the
-local stack so the dashboards we ship under
-[`dashboards/grafana/`](../../dashboards/grafana/) work without
-changes. Realistic on Cloud Run with one wrinkle: Cloud Run exposes
-exactly **one external port per service**, while LGTM wants three
-(3000 for Grafana UI, 4317 for OTLP gRPC, 4318 for OTLP HTTP).
+Coming online; the endpoint and tenant configuration will be
+documented here once the public Cloud is live. Same OTLP shape as
+above (gRPC), with API-key auth via
+`OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ...` set as a
+`--set-secrets` reference into Secret Manager so the key never
+lands in source.
 
-Resolutions in rough cost order:
+### Option C — Any other OTLP-compatible backend
 
-1. Single Cloud Run service exposing 4318 (OTLP HTTP) — telemetry
-   ingress works; Grafana access requires a sidecar reverse proxy
-   or a separately-deployed `grafana-only` service.
-2. Two Cloud Run services (one for OTLP, one for Grafana) backed by
-   a shared Cloud SQL / GCS-stored Tempo backend — proper, more
-   moving parts.
-3. Skip LGTM-on-Cloud-Run; recommend Option A (Cloud Operations) for
-   anything past the local demo.
-
-Phase 3 will pick one and ship the deploy script. For now, point at
-Option A.
-
-### Option C — External backend (Honeycomb, Dartastic, your own collector)
+Honeycomb, your own self-hosted OTel Collector, or anything else
+that speaks OTLP works the same way:
 
 ```sh
-export OTEL_EXPORTER_OTLP_ENDPOINT="https://api.honeycomb.io"
+export OTEL_EXPORTER_OTLP_ENDPOINT="https://api.your-backend.example"
 export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
 ```
 
-Add API keys via `--set-secrets` from Secret Manager — never bake
-them into the env YAML files.
+API keys belong in Secret Manager and reach the container via
+`--set-secrets`, not the env YAML files. (The deploy scripts don't
+include this wiring by default — add it to your
+`deploy-*-service.sh` if you go this route.)
 
-## Phase 2 — service-to-service authentication (pending)
+> **Why not Grafana LGTM on Cloud Run?** It's the local stack's
+> backend, and it would be nice to keep one observability surface.
+> But Cloud Run exposes exactly one external port per service while
+> LGTM wants three (3000 for Grafana UI, 4317 for OTLP gRPC, 4318
+> for OTLP HTTP). The viable resolutions all involve a sidecar
+> reverse proxy or splitting LGTM across multiple services with a
+> shared backing store, and at that point you're better off using
+> Cloud Operations natively. Run LGTM via `tool/stack.sh up` for
+> dev and demos; let GCP's stack handle production.
 
-Phase 1 leaves both `weather-api` and `cache-service` accessible to
-the public Internet so the demo works end-to-end with a single
-`curl`. That is **not the production-correct pattern**: in a real
-deployment, only `weather-api` should be public, and
+## Service-to-service authentication (pending)
+
+The current scripts deploy both `weather-api` and `cache-service`
+with `--allow-unauthenticated` so the demo works end-to-end with a
+single `curl`. That is **not the production-correct pattern**: in a
+real deployment, only `weather-api` should be public, and
 `cache-service` should accept requests only from `weather-api`.
 
 The standard Cloud Run pattern is:
@@ -200,10 +216,10 @@ The third step needs a small extension to `weather_client` —
 specifically a `tokenProvider:` callback the client calls before
 each request. The callback is a no-op locally and a
 metadata-server-token fetch on Cloud Run. The library change is
-intentionally small but it crosses the package boundary, so we're
-checkpointing it for review before landing.
+intentionally small but it crosses the package boundary; the
+follow-up commit lands it.
 
-Once Phase 2 ships, `deploy-cache-service.sh` swaps
+Once that ships, `deploy-cache-service.sh` swaps
 `--allow-unauthenticated` for the IAM-locked path and the deploy
 becomes production-correct.
 
@@ -233,3 +249,4 @@ Disabling APIs is optional — they're free at zero traffic.
 
 [run]: https://cloud.google.com/run
 [gcloud-install]: https://cloud.google.com/sdk/docs/install
+[trace-explorer]: https://console.cloud.google.com/traces/list

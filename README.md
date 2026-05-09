@@ -6,12 +6,14 @@ for an upcoming `blog.dart.dev` post on observability for Dart and Flutter.
 
 **Status.** The local stack is shipped and runnable today —
 `tool/stack.sh up` brings up two services + Grafana LGTM + bundled
-dashboards in one command. The Cloud Run path ships
-[Phase 1 deploy scripts](./deploy/cloudrun/README.md) for
-`weather-api` and `cache-service`; Phase 2 (service-to-service
-authentication) and Phase 3 (Grafana LGTM on Cloud Run) are next.
-Cloud Functions Gen 2 is after that. Architectural intent and
-per-area shipping status are in [DESIGN.md](./DESIGN.md).
+dashboards in one command. The
+[Cloud Run path](./deploy/cloudrun/README.md) ships deploy scripts
+for `weather-api` and `cache-service`, with Google Cloud
+Operations (Cloud Trace + Cloud Logging + Cloud Monitoring) as the
+recommended telemetry backend; a small follow-up adds service-to-
+service authentication. Cloud Functions Gen 2 is after that.
+Architectural intent and per-area shipping status are in
+[DESIGN.md](./DESIGN.md).
 
 ## What this demonstrates
 ![weather-trace.png](weather-trace.png)

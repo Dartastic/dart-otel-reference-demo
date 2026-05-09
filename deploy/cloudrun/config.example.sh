@@ -36,29 +36,30 @@ export ARTIFACT_REPO="${ARTIFACT_REPO:-dart-otel-demo}"
 export WEATHER_API_SERVICE="${WEATHER_API_SERVICE:-weather-api}"
 export CACHE_SERVICE_SERVICE="${CACHE_SERVICE_SERVICE:-cache-service}"
 
-# OTLP endpoint your services should export to. Three reasonable
-# choices:
+# OTLP endpoint your services should export to. The recommended
+# answer on GCP is Google Cloud Operations — it accepts OTLP
+# directly and the trace ↔ log ↔ metric correlation is wired by
+# the platform. Two other options work; see
+# deploy/cloudrun/README.md § Telemetry destination.
 #
-#   1. Google Cloud Operations (Cloud Trace + Cloud Logging + Cloud
-#      Monitoring) — production-correct on GCP. Endpoint is
-#      `https://telemetry.googleapis.com:443`. Requires the Telemetry
-#      API enabled and `roles/telemetry.tracesWriter` on each
-#      service's runtime service account. Spans and metrics land in
-#      Cloud Trace / Cloud Monitoring; logs land in Cloud Logging
-#      via the same telemetry endpoint.
+#   Google Cloud Operations (recommended):
+#     export OTEL_EXPORTER_OTLP_ENDPOINT="https://telemetry.googleapis.com:443"
+#     export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
+#     # plus roles/telemetry.{traces,metrics,logs}Writer on the
+#     # runtime service account — see the README for the gcloud
+#     # one-liner that grants them.
 #
-#   2. Grafana LGTM running on Cloud Run — same observability surface
-#      as the local stack. Requires deploying the lgtm container
-#      separately. Pending — see the Phase 2 section in the
-#      deploy/cloudrun/README.md.
+#   Dartastic Cloud (when online):
+#     # endpoint published once the public Cloud is live
 #
-#   3. Any external OTLP-compatible backend (Honeycomb, Datadog,
-#      Dartastic, your own collector) — set the endpoint and add
-#      `OTEL_EXPORTER_OTLP_HEADERS=Authorization=...` to the env
-#      YAML for auth.
+#   External (Honeycomb / your own collector / etc.):
+#     export OTEL_EXPORTER_OTLP_ENDPOINT="https://api.your-backend.example"
+#     export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
+#     # API keys via Secret Manager; do not commit them here.
 #
-# Phase 1 leaves this empty so the SDK falls back to its default
-# (`http://localhost:4318` — which exports nowhere on Cloud Run, no
-# error). Set it before deploy if you want telemetry from the start.
+# Default is empty — the SDK then falls back to its
+# `http://localhost:4318` default which exports nowhere on Cloud
+# Run (no error, no telemetry). Set this before deploy if you want
+# telemetry from the first request.
 export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
 export OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}"
