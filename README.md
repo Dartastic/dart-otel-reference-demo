@@ -11,7 +11,7 @@ are next. Architectural intent and per-area shipping status are in
 [DESIGN.md](./DESIGN.md).
 
 ## What this demonstrates
-
+![weather-trace.png](weather-trace.png)
 - Distributed tracing across a CLI client, two Dart HTTP services, and an
   external API — one trace ID flowing through every hop, four levels deep.
 - The standard OTel HTTP server semantic conventions: a
