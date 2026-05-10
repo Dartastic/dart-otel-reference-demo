@@ -15,4 +15,4 @@
 /// See the package README for the wire-format contract.
 library;
 
-export 'src/weather_client.dart' show WeatherClient;
+export 'src/weather_client.dart' show WeatherClient, WeatherClientTokenProvider;

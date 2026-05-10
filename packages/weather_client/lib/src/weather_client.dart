@@ -10,6 +10,22 @@ import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 import 'package:weather_core/weather_core.dart';
 
+/// Per-request authorization-token callback for [WeatherClient].
+///
+/// Called once per outbound request. Return the token to attach as
+/// `Authorization: Bearer <token>`, or `null` to skip the header on
+/// this request. Throwing from the callback aborts the request and
+/// surfaces as a [WeatherProviderException] of kind
+/// [WeatherProviderErrorKind.network] to the caller — same shape as
+/// any other auth-time network failure.
+///
+/// The callback is `Future`-returning so platform implementations
+/// can do off-process work (e.g. calling the GCE metadata server) on
+/// the first request and use a cached token on subsequent ones.
+/// Implementations that don't need async — a static API key, an env-
+/// var-derived token — return a completed future.
+typedef WeatherClientTokenProvider = Future<String?> Function();
+
 /// HTTP client for the demo's v1 weather API.
 ///
 /// Implements [WeatherProvider] against any service that speaks the
@@ -44,20 +60,32 @@ class WeatherClient implements WeatherProvider {
   /// `http://cache-service:8090` and `http://cache-service:8090/v1`
   /// are accepted, though the latter is non-canonical and produces an
   /// extra `/v1` segment on every request.
+  ///
+  /// [tokenProvider], when supplied, is called once per outbound
+  /// request and its return value, if non-null, is attached as
+  /// `Authorization: Bearer <token>`. Used by deployments where the
+  /// upstream service requires per-call auth — Cloud Run service-to-
+  /// service with `--no-allow-unauthenticated` is the canonical case.
+  /// Local-stack deployments leave it unset; the v1 API doesn't
+  /// require auth on its own, the auth requirement is a property of
+  /// the network the upstream is exposed on.
   WeatherClient({
     required Uri baseUrl,
     required http.Client client,
     String providerName = 'weather-v1',
     Duration timeout = const Duration(seconds: 10),
+    WeatherClientTokenProvider? tokenProvider,
   }) : _baseUrl = baseUrl,
        _client = client,
        _name = providerName,
-       _timeout = timeout;
+       _timeout = timeout,
+       _tokenProvider = tokenProvider;
 
   final Uri _baseUrl;
   final http.Client _client;
   final String _name;
   final Duration _timeout;
+  final WeatherClientTokenProvider? _tokenProvider;
 
   static final Logger _log = Logger('weather_client');
 
@@ -121,6 +149,18 @@ class WeatherClient implements WeatherProvider {
       if (body != null) {
         request.headers['content-type'] = 'application/json; charset=utf-8';
         request.body = body;
+      }
+      // Attach the bearer token, if any. Resolved BEFORE the request
+      // is sent so a tokenProvider that needs to fetch a fresh
+      // credential (e.g. the GCE metadata server on first call) can
+      // do so without blocking the underlying socket. A null return
+      // means "no auth on this request" — the demo's v1 API doesn't
+      // require it on every deployment.
+      if (_tokenProvider != null) {
+        final token = await _tokenProvider();
+        if (token != null && token.isNotEmpty) {
+          request.headers['authorization'] = 'Bearer $token';
+        }
       }
       final streamed = await _client.send(request).timeout(_timeout);
       final response = await http.Response.fromStream(streamed);

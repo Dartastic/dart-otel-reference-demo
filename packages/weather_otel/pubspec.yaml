@@ -20,6 +20,12 @@ dependencies:
   # shelf is used only for the optional demo admin endpoint.
   shelf: ^1.4.2
 
+  # http is used by the Cloud Run ID-token fetcher to call the GCE
+  # metadata server. weather_otel does not own any application
+  # network traffic — only the metadata-server hop on first
+  # request when running on Cloud Run.
+  http: ^1.2.0
+
   logging: ^1.3.0
   meta: ^1.16.0
 

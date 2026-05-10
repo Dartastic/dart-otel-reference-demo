@@ -20,4 +20,5 @@
 library;
 
 export 'src/bootstrap.dart' show defaultSamplingRatio, initializeOtel;
+export 'src/cloud_run_token_provider.dart' show cloudRunIdTokenProvider;
 export 'src/handle.dart' show WeatherOtelHandle;

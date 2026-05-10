@@ -23,8 +23,6 @@
 // the flag and stop owning the level mapping.
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
-    show Severity;
 import 'package:logging/logging.dart' as dart_logging;
 
 /// Subscribes to `Logger.root.onRecord` and emits each record through

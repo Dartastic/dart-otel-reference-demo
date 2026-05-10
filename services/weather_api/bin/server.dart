@@ -69,10 +69,18 @@ Future<void> main(List<String> _) async {
     Platform.environment['WEATHER_UPSTREAM_URL'] ?? _defaultUpstreamUrl,
   );
   log.info('upstream weather provider: $upstreamUrl');
+  // tokenProvider attaches a Cloud Run service-account ID token to
+  // every outbound request when running on Cloud Run (`K_SERVICE`
+  // env var present); a no-op otherwise. Required when cache-service
+  // is deployed `--no-allow-unauthenticated` — the standard
+  // production posture for an internal-only service. Locally, the
+  // demo's docker-compose stack doesn't set K_SERVICE, so this
+  // resolves to `null` and no Authorization header is attached.
   final provider = WeatherClient(
     baseUrl: upstreamUrl,
     client: outboundClient,
     providerName: 'cache-service',
+    tokenProvider: cloudRunIdTokenProvider(audience: upstreamUrl),
   );
   final service = WeatherService(provider: provider);
 

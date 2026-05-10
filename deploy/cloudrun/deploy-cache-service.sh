@@ -21,13 +21,16 @@
 #      packages — same constraint as docker-compose).
 #   2. Tags the resulting image with the short git SHA so revisions
 #      are reproducible. Falls back to `dev` if not in a git repo.
-#   3. Deploys to Cloud Run with `--allow-unauthenticated` for
-#      Phase 1. The IAM-locked path needs the weather_client
-#      tokenProvider extension that's pending checkpoint review;
-#      see deploy/cloudrun/README.md § "Phase 2: service-to-service
-#      authentication."
+#   3. Deploys to Cloud Run with `--no-allow-unauthenticated`. Only
+#      callers that present a valid service-account ID token with
+#      the cache-service URL as the audience are accepted. The
+#      script grants `roles/run.invoker` to weather-api's runtime
+#      service account so weather-api can call cache-service via
+#      the WeatherClient.tokenProvider path
+#      (cloudRunIdTokenProvider in weather_otel).
 #   4. Prints the resulting service URL — weather-api needs it as
-#      WEATHER_UPSTREAM_URL.
+#      WEATHER_UPSTREAM_URL and as the audience claim on the
+#      ID tokens it mints.
 
 set -euo pipefail
 
@@ -110,7 +113,7 @@ gcloud run deploy "$CACHE_SERVICE_SERVICE" \
   --image="$IMAGE" \
   --env-vars-file=deploy/cloudrun/env/cache-service.env.yaml \
   ${DYNAMIC_ENV[@]:+--update-env-vars="$(IFS=,; echo "${DYNAMIC_ENV[*]}")"} \
-  --allow-unauthenticated \
+  --no-allow-unauthenticated \
   --port=8090 \
   --cpu=1 \
   --memory=512Mi \
@@ -123,7 +126,26 @@ URL="$(gcloud run services describe "$CACHE_SERVICE_SERVICE" \
   --region="$REGION" \
   --format='value(status.url)')"
 
+# Bind the run.invoker role for weather-api's runtime service
+# account on this Cloud Run service. Default Compute Engine SA is
+# what Cloud Run uses unless --service-account was passed at deploy
+# time; teams with a custom per-service SA should set
+# WEATHER_API_RUNTIME_SA in config.sh.
+PROJECT_NUMBER="$(gcloud projects describe "$PROJECT" \
+  --format='value(projectNumber)')"
+WEATHER_API_RUNTIME_SA="${WEATHER_API_RUNTIME_SA:-${PROJECT_NUMBER}-compute@developer.gserviceaccount.com}"
+
+echo "==> Binding run.invoker on cache-service for $WEATHER_API_RUNTIME_SA"
+gcloud run services add-iam-policy-binding "$CACHE_SERVICE_SERVICE" \
+  --project="$PROJECT" \
+  --region="$REGION" \
+  --member="serviceAccount:${WEATHER_API_RUNTIME_SA}" \
+  --role=roles/run.invoker \
+  --quiet >/dev/null
+
 echo
 echo "==> cache-service deployed: $URL"
-echo "    Pass this URL as WEATHER_UPSTREAM_URL to deploy-weather-api.sh,"
+echo "    Locked down with --no-allow-unauthenticated."
+echo "    weather-api's runtime SA has run.invoker on this service."
+echo "    Pass the URL as WEATHER_UPSTREAM_URL to deploy-weather-api.sh,"
 echo "    or set it in deploy/cloudrun/config.sh for re-runs."

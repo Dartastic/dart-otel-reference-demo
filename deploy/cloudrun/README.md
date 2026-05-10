@@ -7,13 +7,13 @@ trace tree, same metric semconv. The runtime is selected by the
 deployment environment, not by the code.
 
 > **Status.** Deploy scripts for `weather-api` and `cache-service`
-> ship today. Both services are `--allow-unauthenticated` for now
-> so you can drive a request from your laptop and see the trace
-> tree end-to-end. The remaining work — service-to-service
-> authentication that lets `cache-service` reject anything that
-> isn't `weather-api` — is described under
-> [Service-to-service authentication](#service-to-service-authentication-pending)
-> and is the next change to land.
+> ship today, with production-grade service-to-service
+> authentication: `cache-service` is deployed
+> `--no-allow-unauthenticated` and `weather-api`'s runtime service
+> account holds `roles/run.invoker` on it; `weather-api` mints a
+> Cloud Run ID token from the GCE metadata server (no-op locally,
+> active on Cloud Run) and attaches it as `Authorization: Bearer …`
+> on every outbound call to `cache-service`.
 >
 > Telemetry on the Cloud Run path uses
 > [Google Cloud Operations](#option-a--google-cloud-operations-recommended)
@@ -194,34 +194,47 @@ include this wiring by default — add it to your
 > Cloud Operations natively. Run LGTM via `tool/stack.sh up` for
 > dev and demos; let GCP's stack handle production.
 
-## Service-to-service authentication (pending)
+## Service-to-service authentication
 
-The current scripts deploy both `weather-api` and `cache-service`
-with `--allow-unauthenticated` so the demo works end-to-end with a
-single `curl`. That is **not the production-correct pattern**: in a
-real deployment, only `weather-api` should be public, and
-`cache-service` should accept requests only from `weather-api`.
+`weather-api` is public (anyone with its URL can call
+`/weather/<city>`); `cache-service` is locked down — only callers
+that present a valid Cloud Run ID token signed for `cache-service`'s
+URL get past the platform's IAM check, and even then only callers
+whose service account has `roles/run.invoker` on it.
 
-The standard Cloud Run pattern is:
+`deploy-cache-service.sh` ships this end-to-end:
 
-1. Deploy `cache-service` with `--no-allow-unauthenticated`.
-2. Grant `weather-api`'s runtime service account the
-   `roles/run.invoker` role on `cache-service`.
-3. From `weather-api`, fetch a service-account ID token from the
-   GCE metadata server (audience = `cache-service`'s URL) and
-   include it as `Authorization: Bearer <token>` on every outbound
-   request to `cache-service`.
+1. Deploys `cache-service` with `--no-allow-unauthenticated`.
+2. Looks up `weather-api`'s runtime service account (defaulting to
+   the project's Compute Engine default SA, which is what Cloud Run
+   uses unless you pass `--service-account` at deploy time; teams
+   with a per-service SA should export `WEATHER_API_RUNTIME_SA` in
+   `config.sh`).
+3. Binds `roles/run.invoker` on `cache-service` for that SA.
 
-The third step needs a small extension to `weather_client` —
-specifically a `tokenProvider:` callback the client calls before
-each request. The callback is a no-op locally and a
-metadata-server-token fetch on Cloud Run. The library change is
-intentionally small but it crosses the package boundary; the
-follow-up commit lands it.
+`weather-api` itself fetches the per-call ID token via the
+`cloudRunIdTokenProvider` helper in `weather_otel`, which the
+service binary wires into its `WeatherClient`. The provider:
 
-Once that ships, `deploy-cache-service.sh` swaps
-`--allow-unauthenticated` for the IAM-locked path and the deploy
-becomes production-correct.
+- Returns `null` when the `K_SERVICE` env var is unset (i.e., not
+  on Cloud Run) — so the local docker-compose stack and the swarm
+  CLI continue to work without any auth header.
+- On Cloud Run, hits
+  `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=<cache-service URL>`
+  on the first request, caches the resulting JWT until ~1 minute
+  before its `exp`, and refreshes on demand.
+- Coalesces concurrent first-call fetches into a single metadata-
+  server hit so an instance that wakes up to a burst of traffic
+  doesn't fan out N parallel token fetches.
+- Lives in `packages/weather_otel/lib/src/cloud_run_token_provider.dart`
+  with covering tests in
+  `packages/weather_otel/test/cloud_run_token_provider_test.dart`.
+
+The same code path runs locally: `cloudRunIdTokenProvider` reads
+`K_SERVICE` from `Platform.environment`, sees it unset on a
+laptop, and returns the no-op closure. No special-casing on the
+service binary side — `WeatherClient` is constructed identically
+in every deployment target.
 
 ## Costs and quotas
 

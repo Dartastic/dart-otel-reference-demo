@@ -306,4 +306,119 @@ void main() {
       );
     });
   });
+
+  group('tokenProvider', () {
+    test(
+      'attaches Authorization header when provider returns a token',
+      () async {
+        String? observedAuth;
+        final mock = MockClient((request) async {
+          observedAuth = request.headers['authorization'];
+          return http.Response(
+            jsonEncode(<String, Object>{'query': 'x', 'matches': <Object>[]}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        });
+        final client = WeatherClient(
+          baseUrl: baseUrl,
+          client: mock,
+          tokenProvider: () async => 'eyJ.fake.token',
+        );
+
+        await client.geocode('x');
+
+        expect(observedAuth, 'Bearer eyJ.fake.token');
+      },
+    );
+
+    test('omits Authorization header when provider returns null', () async {
+      String? observedAuth;
+      final mock = MockClient((request) async {
+        observedAuth = request.headers['authorization'];
+        return http.Response(
+          jsonEncode(<String, Object>{'query': 'x', 'matches': <Object>[]}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final client = WeatherClient(
+        baseUrl: baseUrl,
+        client: mock,
+        tokenProvider: () async => null,
+      );
+
+      await client.geocode('x');
+
+      expect(observedAuth, isNull);
+    });
+
+    test('omits Authorization header when no provider is supplied', () async {
+      String? observedAuth;
+      final mock = MockClient((request) async {
+        observedAuth = request.headers['authorization'];
+        return http.Response(
+          jsonEncode(<String, Object>{'query': 'x', 'matches': <Object>[]}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final client = WeatherClient(baseUrl: baseUrl, client: mock);
+
+      await client.geocode('x');
+
+      expect(observedAuth, isNull);
+    });
+
+    test(
+      'provider exception aborts the request as a network failure',
+      () async {
+        var requested = false;
+        final mock = MockClient((_) async {
+          requested = true;
+          return http.Response('unreachable', 200);
+        });
+        final client = WeatherClient(
+          baseUrl: baseUrl,
+          client: mock,
+          tokenProvider: () async {
+            throw StateError('metadata server unreachable');
+          },
+        );
+
+        await expectLater(
+          client.geocode('x'),
+          throwsA(isA<WeatherProviderException>()),
+        );
+        // Provider runs BEFORE the underlying client.send, so a failed
+        // token fetch must short-circuit the request rather than emit
+        // a half-formed call upstream.
+        expect(requested, isFalse);
+      },
+    );
+
+    test('provider is called once per request', () async {
+      var calls = 0;
+      final mock = MockClient((_) async {
+        return http.Response(
+          jsonEncode(<String, Object>{'query': 'x', 'matches': <Object>[]}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final client = WeatherClient(
+        baseUrl: baseUrl,
+        client: mock,
+        tokenProvider: () async {
+          calls++;
+          return 't';
+        },
+      );
+
+      await client.geocode('x');
+      await client.geocode('y');
+
+      expect(calls, 2);
+    });
+  });
 }
