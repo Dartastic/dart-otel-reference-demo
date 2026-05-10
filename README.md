@@ -96,6 +96,35 @@ OTEL_EXPORTER_OTLP_PROTOCOL=grpc \
 tool/run.sh weather_api
 ```
 
+## Selecting a telemetry backend
+
+Backend selection is purely env-var driven — **no code change between
+backends.** The Dartastic SDK reads the standard `OTEL_*_EXPORTER`
+variables and dispatches to the appropriate exporter at startup.
+
+| Backend                     | `OTEL_TRACES_EXPORTER` | Endpoint env var                            |
+| --------------------------- | ---------------------- | ------------------------------------------- |
+| Grafana LGTM (local)        | `otlp` (default)       | `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` |
+| stdout / debugging          | `console`              | (none — writes to the process's stdout)     |
+| Disabled (CI, fast tests)   | `none`                 | (none — no spans exported)                  |
+| Google Cloud Operations     | `otlp` (default)       | `OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com:443` |
+| Any other OTLP backend      | `otlp` (default)       | `OTEL_EXPORTER_OTLP_ENDPOINT=https://your-backend.example` |
+
+For example, to print every span to stdout (handy when iterating on
+instrumentation without bringing up the full stack):
+
+```sh
+OTEL_TRACES_EXPORTER=console \
+OTEL_METRICS_EXPORTER=none \
+OTEL_LOGS_EXPORTER=none \
+tool/run.sh weather_api
+```
+
+Cloud Run and Cloud Functions deployments use exactly the same
+mechanism — see [`deploy/cloudrun/README.md`](./deploy/cloudrun/README.md#telemetry-destination)
+for the Cloud Operations + Dartastic Cloud + bring-your-own-OTLP
+walkthrough.
+
 ## Quick links
 
 - [DESIGN.md](./DESIGN.md) — architectural decisions and rationale

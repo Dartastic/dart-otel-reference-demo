@@ -194,6 +194,18 @@ treating any later claim as a description of the current code.
   `MemoryMetricReader` in `weather_http_kit`. Every package has a
   ~50-line harness designed to be lifted into a reader's project
   unchanged.
+- **Backend selection by env var, no code change.** The
+  Dartastic SDK reads the standard `OTEL_TRACES_EXPORTER`
+  (`otlp` | `console` | `none`) and `OTEL_EXPORTER_OTLP_ENDPOINT`
+  variables on its own — the bootstrap doesn't add any custom
+  switching. Five concrete backends documented today: Grafana
+  LGTM (local stack), `console` / stdout (debugging and CI),
+  Google Cloud Operations (Cloud Run target — Cloud Trace +
+  Cloud Logging + Cloud Monitoring), Dartastic Cloud (when
+  online), and any other OTLP-compatible backend (Honeycomb, a
+  self-hosted collector, …). The env-var matrix is in the README
+  under "Selecting a telemetry backend"; the Cloud Run walk-
+  through is in `deploy/cloudrun/README.md`.
 
 ### Shipped differently than originally designed
 
@@ -214,14 +226,6 @@ treating any later claim as a description of the current code.
 
 ### Not yet shipped
 
-- **Multiple selectable backends.** Today only Grafana LGTM is
-  wired. The two backends still ahead are `stdout`
-  (`ConsoleExporter`, useful for local debugging and CI) and
-  Google Cloud Operations (Cloud Trace + Cloud Logging) for the
-  Cloud Run target. Backend selection via `OTEL_*` env vars is
-  the SDK's contract — adding the others is mostly a matter of
-  documenting the env-var values and capturing per-backend
-  resource attributes.
 - **Cold-start histogram (Functions only).** `faas.coldstart`
   ships today as a boolean span attribute on every server span
   — the cold-start request itself is observable in traces. The
