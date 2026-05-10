@@ -60,6 +60,26 @@ Middleware otelMiddleware({
           'so the series count stays bounded: only http.request.method, '
           'http.route, http.response.status_code, and url.scheme.',
     );
+    // Saturation proxy alongside the RED-style duration histogram.
+    // Per OTel HTTP semconv `http.server.active_requests` is an
+    // UpDownCounter incremented when a request starts and
+    // decremented when it ends. We deliberately exclude
+    // `http.response.status_code` from the label set (the request
+    // is in flight so there isn't one yet) — same shape as the
+    // duration histogram minus that one label, ensuring cardinality
+    // stays bounded. The instrument's running value is "how many
+    // requests are this service handling RIGHT NOW" — a clean
+    // saturation panel on the dashboard.
+    final activeRequests = meter.createUpDownCounter<int>(
+      name: 'http.server.active_requests',
+      unit: '{request}',
+      description:
+          'Number of HTTP server requests currently in flight, per OTel '
+          'HTTP semantic conventions. Labels: http.request.method, '
+          'http.route, url.scheme — same low-cardinality bounded set '
+          'as http.server.request.duration minus http.response.status_code '
+          '(no status code yet — the request is in flight).',
+    );
 
     return (Request request) async {
       final tracer = OTel.tracerProvider().getTracer(tracerName);
@@ -117,6 +137,15 @@ Middleware otelMiddleware({
       // is what most HTTP frameworks would surface).
       int? observedStatusCode;
 
+      // Increment the in-flight gauge before the handler runs and
+      // decrement in `finally` so even handlers that throw decrement
+      // back to zero. Built once per request to share between the
+      // inc/dec calls so they always carry the same attribute set —
+      // a mismatch here would leak series and prevent the gauge from
+      // ever returning to its baseline.
+      final activeAttrs = _activeRequestAttributes(request, route: route);
+      activeRequests.add(1, activeAttrs);
+
       // ── 3. Run the handler in a zone whose Context is
       //     `inboundContext.withSpan(span)`. Two reasons we don't use
       //     `tracer.withSpanAsync` here:
@@ -157,6 +186,11 @@ Middleware otelMiddleware({
       } finally {
         stopwatch.stop();
         span.end();
+        // Decrement the in-flight gauge with the SAME attribute set
+        // we used on the increment. The gauge tracks "right now,
+        // how many?" — any mismatched attributes would leave a
+        // permanent +1 on a series that no decrement ever reaches.
+        activeRequests.add(-1, activeAttrs);
         // Record the duration metric LAST so even handlers that throw
         // contribute to the latency distribution and error-rate
         // dashboards. Attribute set is the low-cardinality subset —
@@ -249,6 +283,18 @@ Attributes _metricAttributes(
     HttpResource.requestMethod.key: request.method,
     HttpResource.httpRoute.key: route ?? 'unknown',
     HttpResource.responseStatusCode.key: statusCode,
+    UrlResource.urlScheme.key: request.requestedUri.scheme,
+  });
+}
+
+/// Bounded label set for the in-flight gauge. Same shape as
+/// [_metricAttributes] without `http.response.status_code` — the
+/// request is in flight, no status code yet. Per OTel HTTP semconv
+/// for `http.server.active_requests`.
+Attributes _activeRequestAttributes(Request request, {required String? route}) {
+  return OTel.attributesFromMap(<String, Object>{
+    HttpResource.requestMethod.key: request.method,
+    HttpResource.httpRoute.key: route ?? 'unknown',
     UrlResource.urlScheme.key: request.requestedUri.scheme,
   });
 }

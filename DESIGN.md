@@ -112,6 +112,16 @@ treating any later claim as a description of the current code.
   true)` (or env var) — tracking issue is filed against the SDK
   repo and `package_logging_bridge.dart` calls it out at the top
   of the file. When the SDK ships it, this file deletes itself.
+- **In-flight requests gauge** (`http.server.active_requests`) in
+  `weather_http_kit`'s shelf middleware. UpDownCounter
+  incremented on request start, decremented on request end (in
+  `finally`, so handlers that throw still decrement). Same
+  bounded label set as the duration histogram minus
+  `http.response.status_code` (the request is in flight, no
+  status yet) — `http.request.method`, `http.route`,
+  `url.scheme` only. Pinned by a cardinality test plus a
+  return-to-baseline test that catches inc/dec attribute
+  mismatches before they leak series in production.
 - **Cache hit/miss/expired counter** in `cache_service`.
   `weather.cache.lookups` is a counter incremented per cache
   lookup, attributed by `weather.cache.namespace` (forecast |
@@ -199,12 +209,12 @@ treating any later claim as a description of the current code.
   the SDK's contract — adding the others is mostly a matter of
   documenting the env-var values and capturing per-backend
   resource attributes.
-- **Additional metrics.** In-flight request gauge,
-  dependency-health success rate (Open-Meteo), cold-start
-  histograms (Functions only), upstream-call cost counter — all
-  in the design, none shipped. HTTP duration histogram and
-  cache hit/miss counter shipped already; the rest are
-  follow-ups in the same vein.
+- **Additional metrics.** Dependency-health success rate
+  (Open-Meteo), cold-start histograms (Functions only),
+  upstream-call cost counter — all in the design, none shipped.
+  HTTP duration histogram, cache hit/miss counter, and the
+  in-flight requests gauge (`http.server.active_requests`) are
+  shipped; the rest are follow-ups in the same vein.
 ## Deployment matrix
 
 The same Dart code ships to three runtimes. The runtime is selected by a

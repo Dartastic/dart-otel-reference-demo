@@ -237,5 +237,70 @@ void main() {
         expect(attributeMap['url.scheme'], 'http');
       },
     );
+
+    test('records http.server.active_requests with bounded label set, '
+        'returns to baseline after each request', () async {
+      // The gauge is process-cumulative for an UpDownCounter — its
+      // collect() returns the running net value. After N pairs of
+      // (start, end) on the same labels, the value should be back
+      // at the same baseline.
+      final handler = const Pipeline()
+          .addMiddleware(otelMiddleware(routeResolver: (_) => '/weather/:city'))
+          .addHandler((_) => Response.ok('hi'));
+
+      // Snapshot baseline.
+      await harness.collectMetrics();
+      int currentValue() {
+        final m = harness.metrics.findMetricByName(
+          'http.server.active_requests',
+        );
+        if (m == null || m.points.isEmpty) return 0;
+        return (m.points.first.value as num).toInt();
+      }
+
+      final baseline = currentValue();
+      harness.metrics.clear();
+
+      // Drive a few requests; each should leave the gauge at
+      // baseline. Awaiting the handler means each completes before
+      // the next starts — so the gauge goes 0 → 1 → 0 → 1 → 0.
+      for (var i = 0; i < 3; i++) {
+        await handler(_request('GET', '/weather/Toulouse'));
+      }
+
+      await harness.collectMetrics();
+      expect(
+        currentValue(),
+        baseline,
+        reason:
+            'in-flight gauge did not return to baseline — likely a '
+            'mismatch between the inc/dec attribute sets, which would '
+            'leak series and never decrement back to zero',
+      );
+
+      // Cardinality guardrail. Same shape as the duration histogram
+      // minus http.response.status_code (the request is in flight,
+      // no status yet). Any future addition of url.path, query
+      // strings, or per-request identifiers makes this fail.
+      final metric = harness.metrics.findMetricByName(
+        'http.server.active_requests',
+      )!;
+      expect(metric.points, isNotEmpty);
+      final attributeMap = <String, Object?>{
+        for (final attr in metric.points.first.attributes.toList())
+          attr.key: attr.value,
+      };
+      expect(
+        attributeMap.keys.toSet(),
+        <String>{'http.request.method', 'http.route', 'url.scheme'},
+        reason:
+            'in-flight gauge labels must be the low-cardinality '
+            'subset; status_code is NOT included because the request '
+            'is in flight',
+      );
+      expect(attributeMap['http.request.method'], 'GET');
+      expect(attributeMap['http.route'], '/weather/:city');
+      expect(attributeMap['url.scheme'], 'http');
+    });
   });
 }
