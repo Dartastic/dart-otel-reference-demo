@@ -16,14 +16,16 @@
 FROM dart:stable AS build
 WORKDIR /app
 
-# Copy the full workspace so dart_pub_get can resolve every member.
-# Coarse-grained copy beats trying to enumerate paths — services are
-# allowed to depend on packages/ via path:.
+# Copy the workspace, skipping apps/weather_flutter — it requires the
+# Flutter SDK that this Dart-only image doesn't carry, and no server
+# binary depends on it. The sed drops the Flutter app's entry from the
+# workspace pubspec so `dart pub get` resolves cleanly.
 COPY pubspec.yaml ./
 COPY analysis_options.yaml ./
 COPY packages ./packages
 COPY services ./services
-COPY apps ./apps
+COPY apps/weather_cli ./apps/weather_cli
+RUN sed -i '\|apps/weather_flutter|d' pubspec.yaml
 
 # Fetch deps for the entire workspace, then AOT-compile the entrypoint.
 # `dart compile exe` does not auto-create the output directory, so the

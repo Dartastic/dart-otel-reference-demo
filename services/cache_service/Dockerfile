@@ -14,7 +14,8 @@ COPY pubspec.yaml ./
 COPY analysis_options.yaml ./
 COPY packages ./packages
 COPY services ./services
-COPY apps ./apps
+COPY apps/weather_cli ./apps/weather_cli
+RUN sed -i '\|apps/weather_flutter|d' pubspec.yaml
 
 # `dart compile exe` does not auto-create the output directory; see
 # the longer comment in services/weather_api/Dockerfile.

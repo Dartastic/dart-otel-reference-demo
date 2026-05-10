@@ -1,0 +1,87 @@
+# OpenTelemetry Collector config for the local stack's LGTM container.
+# Mounted over the image's bundled `/otel-lgtm/otelcol-config.yaml`.
+#
+# Verbatim copy of the upstream `grafana/otel-lgtm:0.11.10` config
+# with two changes to the OTLP HTTP receiver's CORS block so the
+# Flutter web client (apps/weather_flutter) can POST spans from a
+# browser:
+#
+#   1. allowed_origins broadened to `http://*:*` / `https://*:*` so
+#      origins with port numbers (Flutter dev server, any localhost
+#      dev port) match. The upstream `http://*` glob does NOT span
+#      the `:port` segment.
+#   2. allowed_headers set to `*`. OTLP/HTTP uses
+#      `Content-Type: application/x-protobuf`, which is NOT a CORS-
+#      safe MIME, so the browser preflight asks the receiver to
+#      whitelist it. The bundled config doesn't list any allowed
+#      headers, so the preflight is rejected on every non-safe
+#      header. `*` accepts any header — appropriate for a demo, not
+#      for production.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://*"
+            - "http://*:*"
+            - "https://*"
+            - "https://*:*"
+          allowed_headers:
+            - "*"
+  prometheus/collector:
+    config:
+      scrape_configs:
+        - job_name: "opentelemetry-collector"
+          scrape_interval: 1s
+          static_configs:
+            - targets: ["127.0.0.1:8888"]
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: "/ready"
+
+processors:
+  batch:
+
+exporters:
+  otlphttp/metrics:
+    endpoint: http://127.0.0.1:9090/api/v1/otlp
+    tls:
+      insecure: true
+  otlphttp/traces:
+    endpoint: http://127.0.0.1:4418
+    tls:
+      insecure: true
+  otlphttp/logs:
+    endpoint: http://127.0.0.1:3100/otlp
+    tls:
+      insecure: true
+  otlp/profiles:
+    endpoint: http://127.0.0.1:4040
+    tls:
+      insecure: true
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/traces]
+    metrics:
+      receivers: [otlp, prometheus/collector]
+      processors: [batch]
+      exporters: [otlphttp/metrics]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/logs]
+    profiles:
+      receivers: [otlp]
+      exporters: [otlp/profiles]

@@ -82,6 +82,12 @@ services:
       # picks up dashboards/grafana/json/*.json from the second mount.
       - ../../dashboards/grafana/provisioning.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/grafana-dashboards.yaml:ro
       - ../../dashboards/grafana/json:/var/lib/grafana/dashboards/dart-otel-demo:ro
+      # OTel Collector config override. Verbatim of the image's
+      # bundled `/otel-lgtm/otelcol-config.yaml` with CORS broadened
+      # on the OTLP HTTP receiver so the Flutter web client at
+      # apps/weather_flutter can POST spans from a browser. See the
+      # comments in otelcol-config.yaml for the specific changes.
+      - ./otelcol-config.yaml:/otel-lgtm/otelcol-config.yaml:ro
     healthcheck:
       # /api/health on the Grafana port is the canonical "stack is
       # ready" check. The container takes ~30-60s to fully start
