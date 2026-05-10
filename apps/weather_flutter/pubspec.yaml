@@ -32,8 +32,8 @@ dependencies:
   # Dartastic OpenTelemetry SDK. 1.1.0-beta.2 is the first SDK
   # release with browser support (dart2js and dart2wasm both work
   # against the OTLP HTTP exporter).
-  dartastic_opentelemetry: ^1.1.0-beta
-  dartastic_opentelemetry_api: ^1.0.0-beta.2
+  dartastic_opentelemetry: ^1.1.0-beta.2
+  dartastic_opentelemetry_api: ^1.0.0-beta.5
 
   http: ^1.5.0
 

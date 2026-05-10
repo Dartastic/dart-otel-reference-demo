@@ -5,8 +5,15 @@
 //
 // What this demonstrates:
 //   * The Dartastic OpenTelemetry SDK runs in a browser (dart2js
-//     and dart2wasm). 1.1.0-beta.2 is the first SDK release where
-//     this is supported.
+//     and dart2wasm). SDK 1.1.0-beta.2 + API 1.0.0-beta.5 are the
+//     releases where this is supported.
+//   * **Sub-millisecond span timing on web, automatically.** The
+//     API's `WebTimeProvider` is selected at compile time via
+//     `dart.library.js_interop` and routes span timestamps through
+//     `window.performance.now()` + `timeOrigin` (~5µs nominal,
+//     ~100µs browser-coarsened) instead of `Date.now()`'s
+//     millisecond floor. No opt-in needed; just running on web
+//     gets you the better clock.
 //   * The same `InstrumentedHttpClient` used server-side runs
 //     unchanged in the browser — propagating W3C trace context and
 //     baggage on every outbound request.

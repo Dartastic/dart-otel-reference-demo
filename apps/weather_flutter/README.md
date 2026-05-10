@@ -6,13 +6,16 @@ browser — both `dart2js` (canonical web) and `dart2wasm` (the wasm
 target) — and that the same trace tree the CLI produces
 originates in the user's tap and flows all the way through.
 
-> **Why this exists.** SDK 1.1.0-beta.2 is the first release where
-> the Dartastic OpenTelemetry SDK builds for the browser. This
-> client is the demonstration that the demo's instrumentation
-> patterns (the `InstrumentedHttpClient`, the W3C trace-context
-> propagation, the `WeatherClient` SDK package) **all work
-> unchanged** in a Flutter web context — one conditional import
-> for `SocketException` was the entire portability cost.
+> **Why this exists.** SDK `1.1.0-beta.2` + API `1.0.0-beta.5` are
+> the releases that close the browser story for Dartastic
+> OpenTelemetry: full SDK build on dart2js / dart2wasm, fixed
+> shutdown semantics, **and sub-millisecond span timing on web
+> via `WebTimeProvider`** (auto-selected on web targets — routes
+> through `performance.now() + timeOrigin` instead of `Date.now()`'s
+> millisecond floor). This client is the demonstration that the
+> demo's instrumentation patterns (`InstrumentedHttpClient`, W3C
+> trace-context propagation, the OTel SDK init) **all work
+> unchanged** in a Flutter web context.
 
 ## What it is
 
