@@ -112,6 +112,18 @@ treating any later claim as a description of the current code.
   true)` (or env var) — tracking issue is filed against the SDK
   repo and `package_logging_bridge.dart` calls it out at the top
   of the file. When the SDK ships it, this file deletes itself.
+- **Cache hit/miss/expired counter** in `cache_service`.
+  `weather.cache.lookups` is a counter incremented per cache
+  lookup, attributed by `weather.cache.namespace` (forecast |
+  geocode) and `weather.cache.outcome` (hit | miss | expired).
+  Cardinality is bounded forever — eight series at most. Promoted
+  from a span attribute (which is per-trace and only useful for
+  individual debugging) to a proper metric so backends can chart
+  hit ratio over time and alert on miss-rate spikes. The
+  cardinality discipline is pinned by a test in
+  `services/cache_service/test/handler_test.dart` —
+  introducing a high-cardinality attribute on this metric (a
+  query string, a request id) makes the test fail.
 - **`BaggageSpanProcessor` wired by default in
   `weather_otel`'s bootstrap.** Every entry in
   `Context.current.baggage` is copied onto each starting span as
@@ -187,12 +199,12 @@ treating any later claim as a description of the current code.
   the SDK's contract — adding the others is mostly a matter of
   documenting the env-var values and capturing per-backend
   resource attributes.
-- **Additional metrics.** In-flight request gauge, dependency
-  health (Open-Meteo success rate), explicit cache hit/miss
-  counters (we have it as a span attribute), cold-start
+- **Additional metrics.** In-flight request gauge,
+  dependency-health success rate (Open-Meteo), cold-start
   histograms (Functions only), upstream-call cost counter — all
-  in the design, none shipped. The HTTP duration histogram
-  shipped first because it's what RED dashboards need.
+  in the design, none shipped. HTTP duration histogram and
+  cache hit/miss counter shipped already; the rest are
+  follow-ups in the same vein.
 ## Deployment matrix
 
 The same Dart code ships to three runtimes. The runtime is selected by a

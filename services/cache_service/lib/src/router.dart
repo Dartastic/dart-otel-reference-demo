@@ -4,6 +4,8 @@
 import 'dart:convert';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
+import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
+    show APICounter;
 import 'package:logging/logging.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
@@ -14,6 +16,31 @@ import 'cache.dart';
 import 'error_mapping.dart';
 
 final _log = Logger('cache_service.router');
+
+/// Per-outcome counter for cache lookups. Promoted from a span
+/// attribute (`weather.cache.outcome` on the server span) to a
+/// proper metric so backends can chart cache hit ratio over time
+/// and alert on miss-rate spikes — the cache's effectiveness is
+/// the headline observability question for any caching tier, and
+/// pulling it out of span analysis into a first-class metric is
+/// what makes that chartable.
+///
+/// Cardinality: namespace × outcome. Two namespaces (forecast,
+/// geocode); four outcomes (hit, miss, expired, and the future
+/// `notFound` if the cache ever stores negative entries) — eight
+/// series total, bounded forever. Safe under any backend's series
+/// cap. Service-level attributes (service.name etc.) are added by
+/// the SDK as resource attributes, not by us here.
+late final APICounter<int> _cacheLookups = OTel.meter('cache_service')
+    .createCounter<int>(
+      name: 'weather.cache.lookups',
+      unit: '1',
+      description:
+          'Count of cache lookups in cache_service, by namespace '
+          '(forecast / geocode) and outcome (hit / miss / expired). '
+          'Hit ratio = sum(rate(weather.cache.lookups{outcome="hit"})) / '
+          'sum(rate(weather.cache.lookups)).',
+    );
 
 /// Default TTL for forecast cache entries. Open-Meteo updates its
 /// forecast model on a multi-minute cadence; 5 minutes is a reasonable
@@ -234,6 +261,21 @@ void _annotateActiveSpan({
     }),
   );
   span.addEventNow('cache.${outcome.name}');
+
+  // Same outcome, second pillar: a counter incrementing once per
+  // lookup. Span attribute is the high-cardinality, per-trace view
+  // ("show me the outcome of THIS request"); the counter is the
+  // low-cardinality, time-series view ("show me hit ratio over
+  // time"). Both pillars on the same event because they answer
+  // genuinely different questions. Cardinality stays bounded — see
+  // the doc comment on `_cacheLookups` above.
+  _cacheLookups.add(
+    1,
+    OTel.attributesFromMap(<String, Object>{
+      'weather.cache.namespace': namespace,
+      'weather.cache.outcome': outcome.name,
+    }),
+  );
 }
 
 Response _errorResponse(WeatherProviderException e, StackTrace st) {

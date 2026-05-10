@@ -12,6 +12,7 @@ import '_helpers/fake_weather_provider.dart';
 import '_helpers/otel_test_harness.dart';
 
 void main() {
+  late TestHarness harness;
   late InMemorySpanExporter spans;
   late FakeWeatherProvider upstream;
   late TtlCache<ForecastKey, WeatherForecast> forecastCache;
@@ -19,11 +20,12 @@ void main() {
   late Handler handler;
 
   setUpAll(() async {
-    spans = await maybeInitializeOtelForTest();
+    harness = await maybeInitializeOtelForTest();
+    spans = harness.spans;
   });
 
   setUp(() {
-    spans.clear();
+    harness.clear();
     upstream = FakeWeatherProvider();
     forecastCache = TtlCache<ForecastKey, WeatherForecast>(
       ttl: const Duration(minutes: 5),
@@ -280,6 +282,72 @@ void main() {
 
       final response = await handler(post('/v1/forecast', _validBody()));
       expect(response.statusCode, 429);
+    });
+  });
+
+  group('weather.cache.lookups counter', () {
+    // Pins the cardinality and the per-outcome attribution that
+    // makes hit-ratio queries safe across both backends. If a
+    // future change introduces a high-cardinality attribute on
+    // this metric (a request id, a city name, anything unbounded),
+    // this test fails — that's the cardinality guardrail
+    // promoted from a span attribute to a proper metric.
+    // The counter is process-cumulative; previous tests in this
+    // file have already incremented it. We snapshot before/after
+    // and assert on the delta — that's both more honest about how
+    // OTel cumulative counters work and robust to test ordering.
+    int countOf(String namespace, String outcome) {
+      final metric = harness.metrics.findMetricByName('weather.cache.lookups');
+      if (metric == null) return 0;
+      for (final p in metric.points) {
+        if (p.attributes.getString('weather.cache.namespace') == namespace &&
+            p.attributes.getString('weather.cache.outcome') == outcome) {
+          return (p.value as num).toInt();
+        }
+      }
+      return 0;
+    }
+
+    test('increments on hit and miss with bounded label set', () async {
+      upstream.geocodeImpl = (q, _) =>
+          GeocodeResult(query: q, matches: const [toulouse]);
+
+      // Snapshot the cumulative running total first.
+      await harness.collectMetrics();
+      final missBefore = countOf('geocode', 'miss');
+      final hitBefore = countOf('geocode', 'hit');
+      harness.metrics.clear();
+
+      // Two distinct keys produce two misses, then a repeat of the
+      // first key is a hit.
+      await handler(get('/v1/geocode?q=Toulouse'));
+      await handler(get('/v1/geocode?q=Berlin'));
+      await handler(get('/v1/geocode?q=Toulouse'));
+
+      await harness.collectMetrics();
+      expect(countOf('geocode', 'miss') - missBefore, 2);
+      expect(countOf('geocode', 'hit') - hitBefore, 1);
+
+      // Cardinality guardrail — every emitted point on this metric
+      // carries exactly the bounded label set, never more. If a
+      // future change starts attaching the city name or a request
+      // id, this fails — the metric's series count would explode
+      // and dashboards would break.
+      const allowedKeys = <String>{
+        'weather.cache.namespace',
+        'weather.cache.outcome',
+      };
+      final metric = harness.metrics.findMetricByName('weather.cache.lookups')!;
+      for (final point in metric.points) {
+        expect(
+          point.attributes.toMap().keys.toSet(),
+          equals(allowedKeys),
+          reason:
+              'cache.lookups carries unexpected attribute keys — '
+              'cardinality guardrail. Found: '
+              '${point.attributes.toMap().keys.toList()}',
+        );
+      }
     });
   });
 }
