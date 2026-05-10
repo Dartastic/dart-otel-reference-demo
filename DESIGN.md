@@ -112,6 +112,23 @@ treating any later claim as a description of the current code.
   true)` (or env var) — tracking issue is filed against the SDK
   repo and `package_logging_bridge.dart` calls it out at the top
   of the file. When the SDK ships it, this file deletes itself.
+- **Cloud Run deployment** (`deploy/cloudrun/`).
+  `weather-api` and `cache-service` deploy via the bundled
+  `gcloud-deploy-*.sh` scripts. Production-grade auth:
+  `cache-service` is `--no-allow-unauthenticated`; weather-api's
+  outbound HTTP path attaches a Cloud Run ID token from the GCE
+  metadata server (no-op locally, active on Cloud Run) on every
+  call. Telemetry destination is OTLP-to-Cloud-Operations by
+  default — Cloud Trace / Cloud Logging / Cloud Monitoring all
+  accept OTLP natively.
+- **Cloud Functions Gen 2 deployment** (`deploy/functions/`).
+  Mirror layout to `deploy/cloudrun/`. Same Dockerfiles, same
+  `WeatherClient.tokenProvider` wiring (Functions Gen 2 IS Cloud
+  Run under the hood — `K_SERVICE` is set, the metadata server is
+  reachable, SIGTERM is delivered the same way), with overrides in
+  the env YAML for `cloud.platform=gcp_cloud_functions` and
+  `faas.name` so dashboards can split Functions out from Cloud
+  Run.
 - **Testing pattern** with `InMemorySpanExporter` and now
   `MemoryMetricReader` in `weather_http_kit`. Every package has a
   ~50-line harness designed to be lifted into a reader's project
@@ -136,21 +153,14 @@ treating any later claim as a description of the current code.
 
 ### Not yet shipped
 
-- **Cloud Run service-to-service authentication.** The current
-  `deploy/cloudrun/` scripts deploy both `weather-api` and
-  `cache-service` `--allow-unauthenticated` so a single curl
-  drives the demo end to end. The remaining change locks
-  `cache-service` down with `--no-allow-unauthenticated`, grants
-  `weather-api`'s runtime service account `roles/run.invoker` on
-  it, and adds a small `tokenProvider:` extension to
-  `weather_client` so the outbound HTTP path attaches a service-
-  account ID token from the GCE metadata server (no-op locally,
-  metadata-server fetch on Cloud Run). The library change is
-  small but crosses a package boundary; checkpointed.
-- **Cloud Functions Gen 2 deployment** (`deploy/functions/`).
-  Most divergent of the three targets — different bootstrap, no
-  long-running process, function-termination signal instead of
-  SIGTERM, exporter cadence has to be tuned shorter.
+- **`faas.coldstart` / `faas.execution` per-invocation
+  attributes** on the Cloud Functions Gen 2 path. The bootstrap
+  doesn't currently emit these; the static `faas.name` /
+  `faas.version` resource attributes are set from the env YAML.
+  `faas.coldstart` is set on the first request a fresh instance
+  handles; `faas.execution` is a per-invocation correlation id.
+  Both are shipping-ready conceptually but require a small
+  bootstrap hook.
 - **Multiple selectable backends.** Today only Grafana LGTM is
   wired. The two backends still ahead are `stdout`
   (`ConsoleExporter`, useful for local debugging and CI) and
@@ -217,8 +227,8 @@ dashboards/
   grafana/             pre-built Grafana dashboard JSON, auto-loaded into the local stack
 deploy/
   local/               docker-compose for app + Grafana LGTM
-  cloudrun/            Cloud Run deploy scripts + env YAML; Phase 1 (services); Phase 2/3 pending
-  functions/           Firebase Functions config                [pending]
+  cloudrun/            Cloud Run deploy scripts + env YAML; IAM-locked cache-service
+  functions/           Cloud Functions Gen 2 deploy scripts + env YAML; same shape as cloudrun
 ```
 
 The original design also called for a separate `apps/otel_flush_cli`
