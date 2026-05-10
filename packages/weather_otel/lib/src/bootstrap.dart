@@ -47,6 +47,14 @@ const double defaultSamplingRatio = 1.0;
 ///     Pass `bridgePackageLogging: false` to opt out. Convenience
 ///     belongs in the SDK; tracking issue:
 ///     https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry/issues/32
+///   * `BaggageSpanProcessor` — every entry in `Context.current.baggage`
+///     is copied onto each starting span as a string attribute. This
+///     is what makes low-cardinality baggage entries (like a
+///     `cli.run_id` set once at the CLI's entry point) searchable on
+///     every span across the trace tree without manual enrichment.
+///     Pass `attachBaggageToSpans: false` to opt out — primarily
+///     useful in tests that want to assert raw span attributes
+///     without baggage interference.
 ///
 /// Endpoint, protocol, headers, and additional resource attributes
 /// resolve from the standard `OTEL_*` environment variables — no custom
@@ -69,6 +77,7 @@ Future<WeatherOtelHandle> initializeOtel({
   SpanProcessor? spanProcessor,
   Sampler? sampler,
   bool bridgePackageLogging = true,
+  bool attachBaggageToSpans = true,
   Map<String, String> environment = const <String, String>{},
 }) async {
   final logger = Logger('weather_otel.bootstrap');
@@ -125,6 +134,21 @@ Future<WeatherOtelHandle> initializeOtel({
     spanProcessor: spanProcessor,
     sampler: effectiveSampler,
   );
+
+  // Register a BaggageSpanProcessor in addition to whatever the SDK
+  // wired up via spanProcessor: above (default is BatchSpanProcessor
+  // around the OTLP exporter). The BaggageSpanProcessor only runs in
+  // onStart — it copies every entry in Context.current.baggage onto
+  // the starting span as a string attribute. That makes low-
+  // cardinality baggage entries (e.g. cli.run_id, cli.session_id,
+  // request_id, tenant) searchable on every span across the trace
+  // tree without per-span manual enrichment in handler code.
+  // Cardinality discipline is the caller's responsibility — only put
+  // bounded values into baggage. See DESIGN.md § Cardinality
+  // discipline.
+  if (attachBaggageToSpans) {
+    OTel.tracerProvider().addSpanProcessor(const BaggageSpanProcessor());
+  }
 
   // Bridge `package:logging` records into the OTel logs SDK so log
   // entries land in the configured backend (Loki, Cloud Logging,

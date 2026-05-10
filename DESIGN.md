@@ -112,6 +112,24 @@ treating any later claim as a description of the current code.
   true)` (or env var) — tracking issue is filed against the SDK
   repo and `package_logging_bridge.dart` calls it out at the top
   of the file. When the SDK ships it, this file deletes itself.
+- **`BaggageSpanProcessor` wired by default in
+  `weather_otel`'s bootstrap.** Every entry in
+  `Context.current.baggage` is copied onto each starting span as
+  a string attribute. Combined with the W3C Baggage propagator
+  (which carries baggage entries as a `baggage` header on every
+  outbound HTTP request), a baggage entry set once at the CLI's
+  entry point appears as a span attribute on every span across
+  the trace tree — `weather-cli`, `weather-api`,
+  `cache-service`, and the open-meteo client spans nested under
+  cache-service. Searchable in any backend without per-handler
+  enrichment.
+- **Concrete baggage entries** emitted by `weather_cli`:
+  `cli.run_id` (UUID v4 per process invocation; finds all spans
+  for one CLI run with one search) and `cli.session_id` (read
+  from the `CLI_SESSION_ID` env var; the swarm script sets one
+  session id for an entire batch so every CLI in one swarm
+  shares it). Both are bounded-cardinality identifiers — safe
+  for the BaggageSpanProcessor to copy onto every span.
 - **Cloud Run deployment** (`deploy/cloudrun/`).
   `weather-api` and `cache-service` deploy via the bundled
   `gcloud-deploy-*.sh` scripts. Production-grade auth:
@@ -169,13 +187,6 @@ treating any later claim as a description of the current code.
   the SDK's contract — adding the others is mostly a matter of
   documenting the env-var values and capturing per-backend
   resource attributes.
-- **`BaggageSpanProcessor`** is referenced in this document but
-  not yet wired in `weather_otel`'s bootstrap. Baggage is
-  propagated, but extracting baggage entries onto every emitted
-  span as attributes is still ahead.
-- **Concrete baggage entries** (`cli.run_id`, `cli.session_id`,
-  `request_id`, `tenant`) are an example set, not currently
-  emitted by any binary in the repo.
 - **Additional metrics.** In-flight request gauge, dependency
   health (Open-Meteo success rate), explicit cache hit/miss
   counters (we have it as a span attribute), cold-start

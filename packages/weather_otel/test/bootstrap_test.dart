@@ -74,6 +74,52 @@ void main() {
       expect(attrs.getString('service.version'), '0.0.0-test');
       expect(attrs.getString('service.instance.id'), handle.serviceInstanceId);
     });
+
+    test(
+      'BaggageSpanProcessor copies baggage onto spans started inside it',
+      () async {
+        // Asserts the wiring put in place by initializeOtel: the
+        // BaggageSpanProcessor reads Context.current.baggage at span
+        // start and writes every entry as an attribute on the span.
+        // This is what makes baggage entries searchable across the
+        // whole trace tree without per-handler enrichment in service
+        // code.
+        exporter.clear();
+        final baggage = OTel.baggage(<String, BaggageEntry>{
+          'cli.run_id': OTel.baggageEntry('test-run-1'),
+          'cli.session_id': OTel.baggageEntry('test-session-1'),
+          'tenant': OTel.baggageEntry('acme'),
+        });
+        await Context.current.copyWithBaggage(baggage).run(() async {
+          OTel.tracer().startSpan('with.baggage').end();
+        });
+        await handle.forceFlush();
+
+        final span = exporter.spans.firstWhere((s) => s.name == 'with.baggage');
+        expect(span.attributes.getString('cli.run_id'), 'test-run-1');
+        expect(span.attributes.getString('cli.session_id'), 'test-session-1');
+        expect(span.attributes.getString('tenant'), 'acme');
+      },
+    );
+
+    test(
+      'spans started outside any baggage carry no baggage attributes',
+      () async {
+        exporter.clear();
+        // No copyWithBaggage on Context.current — purely outside any
+        // baggage. The processor's onStart short-circuits when
+        // Context.current.baggage is null/empty.
+        OTel.tracer().startSpan('without.baggage').end();
+        await handle.forceFlush();
+
+        final span = exporter.spans.firstWhere(
+          (s) => s.name == 'without.baggage',
+        );
+        expect(span.attributes.getString('cli.run_id'), isNull);
+        expect(span.attributes.getString('cli.session_id'), isNull);
+        expect(span.attributes.getString('tenant'), isNull);
+      },
+    );
   });
 
   group('initializeOtel argument validation', () {

@@ -172,6 +172,20 @@ export SWARM_DAYS="$DAYS"
 export OTEL_EXPORTER_OTLP_ENDPOINT="$OTLP_ENDPOINT"
 export OTEL_EXPORTER_OTLP_PROTOCOL="grpc"
 
+# CLI_SESSION_ID is read by weather_cli and added to the
+# `cli.session_id` baggage entry, which the BaggageSpanProcessor in
+# weather_otel copies onto every span across the trace. One swarm
+# run sets one session id on every CLI invocation it spawns —
+# searching for `cli.session_id=<value>` in any backend then
+# returns every span across all 200 traces from that swarm. Honors
+# an externally-set CLI_SESSION_ID so a CI run can stamp its own
+# correlation id (build number, commit SHA, etc.) onto the spans.
+if [ -z "${CLI_SESSION_ID:-}" ]; then
+  CLI_SESSION_ID="swarm-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+fi
+export CLI_SESSION_ID
+echo "swarm session id: $CLI_SESSION_ID"
+
 # ── Run the swarm. ──
 START_NS=$(date +%s%N 2>/dev/null || date +%s)
 
