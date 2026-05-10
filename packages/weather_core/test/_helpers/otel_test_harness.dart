@@ -2,9 +2,10 @@
 // Copyright 2026, Mindful Software LLC.
 
 // Test harness for weather_core. Tests bring up a real OpenTelemetry SDK
-// with an in-memory span exporter so spans can be inspected after the
-// system under test runs. We do not mock the SDK itself; per DESIGN.md we
-// test against the real OTel implementation pointed at a test exporter.
+// pointed at an in-memory span exporter (and an on-demand metric reader)
+// so spans and metrics can be inspected after the system under test runs.
+// We do not mock the SDK itself; per DESIGN.md we test against the real
+// OTel implementation pointed at a test exporter.
 //
 // Tests only — never imported from production code.
 
@@ -12,24 +13,14 @@ import 'dart:async';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 
-/// In-memory `SpanExporter` that captures every exported span for later
-/// inspection in tests. Modeled after the SDK's own `InMemorySpanExporter`
-/// (in `dartastic_opentelemetry/test/testing_utils/`). Reproduced here as a
-/// standalone helper because that one is not part of the published API.
 class InMemorySpanExporter implements SpanExporter {
   final List<Span> _spans = <Span>[];
   bool _isShutdown = false;
 
-  /// All spans captured since the last `clear()`.
   List<Span> get spans => List<Span>.unmodifiable(_spans);
-
-  /// All captured span names, in export order.
   List<String> get spanNames => _spans.map((s) => s.name).toList();
-
-  /// Discard the captured spans. Call this in `setUp` to isolate tests.
   void clear() => _spans.clear();
 
-  /// Return the most recent span with [name], or null if none.
   Span? findSpanByName(String name) {
     for (var i = _spans.length - 1; i >= 0; i--) {
       if (_spans[i].name == name) return _spans[i];
@@ -37,7 +28,6 @@ class InMemorySpanExporter implements SpanExporter {
     return null;
   }
 
-  /// Return all spans with [name], in export order.
   List<Span> findSpansByName(String name) =>
       _spans.where((s) => s.name == name).toList(growable: false);
 
@@ -58,36 +48,112 @@ class InMemorySpanExporter implements SpanExporter {
   }
 }
 
-/// Initializes the OpenTelemetry SDK for a test suite.
-///
-/// Returns the [InMemorySpanExporter] so tests can inspect captured spans.
-/// Use `SimpleSpanProcessor` (synchronous export per span) so spans are
-/// available immediately after the system under test returns — no need to
-/// await a flush. This is the one place `SimpleSpanProcessor` is acceptable;
-/// see DESIGN.md "Non-goals." Production paths use `BatchSpanProcessor`.
-///
-/// `OTel.initialize()` may only be called once per process. Tests that
-/// share a process must share this initialization — call it from a single
-/// `setUpAll` in a top-level test runner, or use [maybeInitializeOtel] to
-/// make it idempotent.
-Future<InMemorySpanExporter> initializeOtelForTest({
-  String serviceName = 'weather_core_test',
-  String serviceVersion = '0.0.0-test',
-}) async {
-  final exporter = InMemorySpanExporter();
-  await OTel.initialize(
-    endpoint: 'http://localhost:4317',
-    serviceName: serviceName,
-    serviceVersion: serviceVersion,
-    spanProcessor: SimpleSpanProcessor(exporter),
-    detectPlatformResources: false,
-  );
-  return exporter;
+class InMemoryMetricExporter implements MetricExporter {
+  final List<Metric> _metrics = <Metric>[];
+  bool _isShutdown = false;
+
+  List<Metric> get metrics => List<Metric>.unmodifiable(_metrics);
+  void clear() => _metrics.clear();
+
+  Metric? findMetricByName(String name) {
+    for (var i = _metrics.length - 1; i >= 0; i--) {
+      if (_metrics[i].name == name) return _metrics[i];
+    }
+    return null;
+  }
+
+  @override
+  Future<bool> export(MetricData data) async {
+    if (_isShutdown) return false;
+    _metrics.addAll(data.metrics);
+    return true;
+  }
+
+  @override
+  Future<bool> forceFlush() async => !_isShutdown;
+
+  @override
+  Future<bool> shutdown() async {
+    _isShutdown = true;
+    return true;
+  }
 }
 
-/// Idempotent variant — initializes only if no SDK has been registered yet.
-/// Useful when several test files share a process.
-InMemorySpanExporter? _sharedExporter;
-Future<InMemorySpanExporter> maybeInitializeOtelForTest() async {
-  return _sharedExporter ??= await initializeOtelForTest();
+/// On-demand metric reader for tests — never fires on a timer; tests
+/// drive `collect()` explicitly via [TestHarness.collectMetrics].
+class OnDemandMetricReader extends MetricReader {
+  OnDemandMetricReader(this.exporter);
+
+  final MetricExporter exporter;
+  bool _isShutdown = false;
+
+  @override
+  Future<MetricData> collect() async {
+    final mp = meterProvider;
+    if (mp == null || _isShutdown) {
+      return MetricData.empty();
+    }
+    final metrics = await mp.collectAllMetrics();
+    return MetricData(resource: mp.resource, metrics: metrics);
+  }
+
+  @override
+  Future<bool> forceFlush() async {
+    if (_isShutdown) return false;
+    final data = await collect();
+    if (data.metrics.isNotEmpty) {
+      await exporter.export(data);
+    }
+    return await exporter.forceFlush();
+  }
+
+  @override
+  Future<bool> shutdown() async {
+    if (_isShutdown) return true;
+    _isShutdown = true;
+    return await exporter.shutdown();
+  }
+}
+
+class TestHarness {
+  TestHarness({
+    required this.spans,
+    required this.metrics,
+    required this.metricReader,
+  });
+
+  final InMemorySpanExporter spans;
+  final InMemoryMetricExporter metrics;
+  final MetricReader metricReader;
+
+  Future<void> collectMetrics() async {
+    final data = await metricReader.collect();
+    await metrics.export(data);
+  }
+
+  void clear() {
+    spans.clear();
+    metrics.clear();
+  }
+}
+
+TestHarness? _shared;
+Future<TestHarness> maybeInitializeOtelForTest() async {
+  if (_shared != null) return _shared!;
+  final spanExporter = InMemorySpanExporter();
+  final metricExporter = InMemoryMetricExporter();
+  final reader = OnDemandMetricReader(metricExporter);
+  await OTel.initialize(
+    endpoint: 'http://localhost:4317',
+    serviceName: 'weather_core_test',
+    serviceVersion: '0.0.0-test',
+    spanProcessor: SimpleSpanProcessor(spanExporter),
+    metricReader: reader,
+    detectPlatformResources: false,
+  );
+  return _shared = TestHarness(
+    spans: spanExporter,
+    metrics: metricExporter,
+    metricReader: reader,
+  );
 }

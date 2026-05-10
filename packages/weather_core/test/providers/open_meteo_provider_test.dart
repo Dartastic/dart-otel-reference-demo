@@ -54,14 +54,16 @@ Map<String, dynamic> _forecastResponse() => <String, dynamic>{
 };
 
 void main() {
+  late TestHarness harness;
   late InMemorySpanExporter spans;
 
   setUpAll(() async {
-    spans = await maybeInitializeOtelForTest();
+    harness = await maybeInitializeOtelForTest();
+    spans = harness.spans;
   });
 
   setUp(() {
-    spans.clear();
+    harness.clear();
   });
 
   group('OpenMeteoProvider.geocode', () {
@@ -262,6 +264,117 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('weather.upstream.requests counter', () {
+    // Pins the counter's cardinality discipline and the success /
+    // error attribution on both operations. Counter is process-
+    // cumulative; assert deltas relative to a snapshot.
+    int countOf({
+      required String operation,
+      required String outcome,
+      String? errorKind,
+      required InMemoryMetricExporter metrics,
+    }) {
+      final metric = metrics.findMetricByName('weather.upstream.requests');
+      if (metric == null) return 0;
+      for (final p in metric.points) {
+        if (p.attributes.getString('weather.operation') != operation) continue;
+        if (p.attributes.getString('weather.outcome') != outcome) continue;
+        final ek = p.attributes.getString('weather.error.kind');
+        if ((errorKind == null && ek == null) || ek == errorKind) {
+          return (p.value as num).toInt();
+        }
+      }
+      return 0;
+    }
+
+    const toulouse = City(
+      id: 1,
+      name: 'Toulouse',
+      latitude: 43.6,
+      longitude: 1.44,
+      country: 'France',
+      countryCode: 'FR',
+    );
+
+    test('records success and error outcomes with bounded labels', () async {
+      // One success on geocode (200 with results)…
+      final ok = MockClient((_) async {
+        return http.Response(jsonEncode(_geocodeResponse('Toulouse')), 200);
+      });
+      // …and one error on getForecast (503 → upstream).
+      final fail = MockClient((_) async {
+        return http.Response('upstream is down', 503);
+      });
+
+      await harness.collectMetrics();
+      final geoSuccessBefore = countOf(
+        operation: 'geocode',
+        outcome: 'success',
+        metrics: harness.metrics,
+      );
+      final fcErrorBefore = countOf(
+        operation: 'forecast',
+        outcome: 'error',
+        errorKind: 'upstream',
+        metrics: harness.metrics,
+      );
+      harness.metrics.clear();
+
+      await OpenMeteoProvider(client: ok).geocode('Toulouse');
+      await expectLater(
+        OpenMeteoProvider(
+          client: fail,
+        ).getForecast(city: toulouse, forecastDays: 3),
+        throwsA(isA<WeatherProviderException>()),
+      );
+
+      await harness.collectMetrics();
+
+      expect(
+        countOf(
+              operation: 'geocode',
+              outcome: 'success',
+              metrics: harness.metrics,
+            ) -
+            geoSuccessBefore,
+        1,
+      );
+      expect(
+        countOf(
+              operation: 'forecast',
+              outcome: 'error',
+              errorKind: 'upstream',
+              metrics: harness.metrics,
+            ) -
+            fcErrorBefore,
+        1,
+      );
+
+      // Cardinality guardrail. Allowed attribute keys on every point:
+      // provider, operation, outcome, optional error.kind. Anything
+      // else (city name, query string, request id, etc.) is a leak.
+      const allowed = <String>{
+        'weather.provider',
+        'weather.operation',
+        'weather.outcome',
+        'weather.error.kind',
+      };
+      final metric = harness.metrics.findMetricByName(
+        'weather.upstream.requests',
+      )!;
+      for (final p in metric.points) {
+        final keys = p.attributes.toMap().keys.toSet();
+        expect(
+          keys.difference(allowed),
+          isEmpty,
+          reason:
+              'weather.upstream.requests carries unexpected attribute '
+              'keys — cardinality guardrail. Found: ${keys.toList()}',
+        );
+      }
     });
   });
 }

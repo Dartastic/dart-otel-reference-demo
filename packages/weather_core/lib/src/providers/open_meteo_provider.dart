@@ -5,12 +5,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-// The SDK re-exports the full API surface: OTel and tracer primitives
-// (SpanKind, SpanStatusCode, etc.), the abstract instrument types
-// (APICounter, APIHistogram), and the semantic-convention enums
-// (HttpResource, UrlResource, ServerResource, ExceptionResource, etc.).
-// The API package is a transitive dependency.
+// The SDK re-exports MOST of the API surface (Tracer, Span, Context,
+// Attributes, semantic enums) — but NOT the abstract instrument
+// interfaces (APICounter, APIHistogram), which is why we depend on
+// the API package directly to name them. Same constraint
+// `weather_service.dart` and `cache_service`'s router work around.
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
+import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
+    show APICounter;
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
@@ -78,6 +80,62 @@ class OpenMeteoProvider implements WeatherProvider {
   @override
   String get name => 'open-meteo';
 
+  /// Per-call counter for upstream requests to Open-Meteo.
+  ///
+  /// Two questions a real ops team always wants this metric to
+  /// answer:
+  ///
+  ///   1. **Dependency health.** What fraction of our calls to
+  ///      Open-Meteo succeed right now? `success / (success +
+  ///      error)` over a rolling window is the headline number;
+  ///      slicing by `error.kind` shows whether failures are
+  ///      network, rate-limit, parse, or upstream-5xx so the
+  ///      page goes to the right team.
+  ///   2. **Cost.** Open-Meteo is free at the demo's volume but
+  ///      every paid upstream API charges per call. Multiplying
+  ///      `sum(rate(weather_upstream_requests_total))` by the
+  ///      contract's per-call price is the cleanest "what is this
+  ///      dependency costing us" panel — no per-request log
+  ///      parsing required.
+  ///
+  /// Cardinality bounded:
+  ///   provider:    {open-meteo, ...}                ~5 values
+  ///   operation:   {geocode, getForecast}            2 values
+  ///   outcome:     {success, error}                  2 values
+  ///   error.kind:  WeatherProviderErrorKind          7 values
+  ///                  (only present when outcome=error)
+  /// Upper bound: ~80 series — safe under any backend's per-metric
+  /// series cap.
+  static late final APICounter<int> _upstreamRequests =
+      OTel.meter('weather_core').createCounter<int>(
+        name: 'weather.upstream.requests',
+        unit: '1',
+        description:
+            'Count of upstream weather-provider calls by provider, '
+            'operation, outcome, and error.kind. Use for dependency-'
+            'health panels (success rate by provider × operation) and '
+            'upstream-call cost panels (count × per-call price).',
+      );
+
+  /// Increments `_upstreamRequests`. Called from the `finally` block
+  /// of every operation so success and error paths share one
+  /// recording site — keeps the counter's contract obvious and
+  /// removes duplicate increment risk if the success path ever
+  /// grows another return statement.
+  void _recordUpstream({
+    required String operation,
+    required String outcome,
+    String? errorKind,
+  }) {
+    final attrs = <String, Object>{
+      WeatherSemantics.provider.key: name,
+      WeatherSemantics.operation.key: operation,
+      WeatherSemantics.outcome.key: outcome,
+      WeatherSemantics.errorKind.key: ?errorKind,
+    };
+    _upstreamRequests.add(1, OTel.attributesFromMap(attrs));
+  }
+
   @override
   Future<GeocodeResult> geocode(String query, {int maxResults = 5}) async {
     if (query.trim().isEmpty) {
@@ -119,6 +177,8 @@ class OpenMeteoProvider implements WeatherProvider {
       }),
     );
 
+    var outcome = 'success';
+    String? errorKind;
     try {
       return await OTel.tracer().withSpanAsync(span, () async {
         final body = await _get(uri, span: span, operation: 'geocode');
@@ -176,11 +236,15 @@ class OpenMeteoProvider implements WeatherProvider {
         );
       });
     } on WeatherProviderException catch (e, st) {
+      outcome = 'error';
+      errorKind = e.kind.name;
       span
         ..recordException(e, stackTrace: st)
         ..setStatus(SpanStatusCode.Error, e.message);
       rethrow;
     } catch (e, st) {
+      outcome = 'error';
+      errorKind = WeatherProviderErrorKind.unknown.name;
       span
         ..recordException(e, stackTrace: st)
         ..setStatus(SpanStatusCode.Error, e.toString());
@@ -193,6 +257,11 @@ class OpenMeteoProvider implements WeatherProvider {
       );
     } finally {
       span.end();
+      _recordUpstream(
+        operation: 'geocode',
+        outcome: outcome,
+        errorKind: errorKind,
+      );
     }
   }
 
@@ -240,6 +309,8 @@ class OpenMeteoProvider implements WeatherProvider {
       }),
     );
 
+    var outcome = 'success';
+    String? errorKind;
     try {
       return await OTel.tracer().withSpanAsync(span, () async {
         final body = await _get(uri, span: span, operation: 'forecast');
@@ -276,11 +347,15 @@ class OpenMeteoProvider implements WeatherProvider {
         }
       });
     } on WeatherProviderException catch (e, st) {
+      outcome = 'error';
+      errorKind = e.kind.name;
       span
         ..recordException(e, stackTrace: st)
         ..setStatus(SpanStatusCode.Error, e.message);
       rethrow;
     } catch (e, st) {
+      outcome = 'error';
+      errorKind = WeatherProviderErrorKind.unknown.name;
       span
         ..recordException(e, stackTrace: st)
         ..setStatus(SpanStatusCode.Error, e.toString());
@@ -293,6 +368,11 @@ class OpenMeteoProvider implements WeatherProvider {
       );
     } finally {
       span.end();
+      _recordUpstream(
+        operation: 'forecast',
+        outcome: outcome,
+        errorKind: errorKind,
+      );
     }
   }
 

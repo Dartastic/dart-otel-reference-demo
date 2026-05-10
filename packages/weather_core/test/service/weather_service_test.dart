@@ -44,16 +44,18 @@ class FakeWeatherProvider implements WeatherProvider {
 }
 
 void main() {
+  late TestHarness harness;
   late InMemorySpanExporter spans;
   late FakeWeatherProvider provider;
   late WeatherService service;
 
   setUpAll(() async {
-    spans = await maybeInitializeOtelForTest();
+    harness = await maybeInitializeOtelForTest();
+    spans = harness.spans;
   });
 
   setUp(() {
-    spans.clear();
+    harness.clear();
     provider = FakeWeatherProvider();
     service = WeatherService(provider: provider);
   });

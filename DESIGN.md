@@ -122,6 +122,16 @@ treating any later claim as a description of the current code.
   `url.scheme` only. Pinned by a cardinality test plus a
   return-to-baseline test that catches inc/dec attribute
   mismatches before they leak series in production.
+- **Upstream dependency-health + cost counter**
+  (`weather.upstream.requests`) on `OpenMeteoProvider`. One
+  counter answers two questions: dependency health (success /
+  total over a rolling window, sliced by `error.kind`) and
+  upstream-call cost (count × per-call price). Attributes:
+  `weather.provider`, `weather.operation`, `weather.outcome`,
+  `weather.error.kind` (only when outcome=error). ~80 series
+  upper bound. Cardinality is pinned by a test that fails the
+  moment a high-cardinality attribute (city name, query string,
+  request id) is added.
 - **Cache hit/miss/expired counter** in `cache_service`.
   `weather.cache.lookups` is a counter incremented per cache
   lookup, attributed by `weather.cache.namespace` (forecast |
@@ -209,12 +219,11 @@ treating any later claim as a description of the current code.
   the SDK's contract — adding the others is mostly a matter of
   documenting the env-var values and capturing per-backend
   resource attributes.
-- **Additional metrics.** Dependency-health success rate
-  (Open-Meteo), cold-start histograms (Functions only),
-  upstream-call cost counter — all in the design, none shipped.
-  HTTP duration histogram, cache hit/miss counter, and the
-  in-flight requests gauge (`http.server.active_requests`) are
-  shipped; the rest are follow-ups in the same vein.
+- **Additional metrics.** Cold-start histograms (Functions only)
+  is the remaining "Not yet shipped" metric in the original
+  list; everything else (HTTP duration histogram, cache
+  hit/miss counter, in-flight requests gauge, upstream
+  dependency-health + cost counter) is shipped.
 ## Deployment matrix
 
 The same Dart code ships to three runtimes. The runtime is selected by a
