@@ -240,29 +240,32 @@ void main() {
       },
     );
 
-    test('first request gets faas.coldstart=true, the rest get false', () async {
-      // The latch is process-global; reset it so this test sees the
-      // first request as cold even if other tests in this file ran
-      // first.
-      debugResetColdStartForTesting();
+    test(
+      'first request gets faas.coldstart=true, the rest get false',
+      () async {
+        // The latch is process-global; reset it so this test sees the
+        // first request as cold even if other tests in this file ran
+        // first.
+        debugResetColdStartForTesting();
 
-      final handler = const Pipeline()
-          .addMiddleware(otelMiddleware())
-          .addHandler((_) => Response.ok('hi'));
+        final handler = const Pipeline()
+            .addMiddleware(otelMiddleware())
+            .addHandler((_) => Response.ok('hi'));
 
-      await handler(_request('GET', '/x'));
-      await handler(_request('GET', '/x'));
-      await handler(_request('GET', '/x'));
+        await handler(_request('GET', '/x'));
+        await handler(_request('GET', '/x'));
+        await handler(_request('GET', '/x'));
 
-      final spansSeen = spans.findSpansByName('GET');
-      expect(spansSeen, hasLength(greaterThanOrEqualTo(3)));
-      // Take the LAST three — earlier tests in the suite share the
-      // same exporter.
-      final tail = spansSeen.skip(spansSeen.length - 3).toList();
-      expect(tail[0].attributes.getBool('faas.coldstart'), true);
-      expect(tail[1].attributes.getBool('faas.coldstart'), false);
-      expect(tail[2].attributes.getBool('faas.coldstart'), false);
-    });
+        final spansSeen = spans.findSpansByName('GET');
+        expect(spansSeen, hasLength(greaterThanOrEqualTo(3)));
+        // Take the LAST three — earlier tests in the suite share the
+        // same exporter.
+        final tail = spansSeen.skip(spansSeen.length - 3).toList();
+        expect(tail[0].attributes.getBool('faas.coldstart'), true);
+        expect(tail[1].attributes.getBool('faas.coldstart'), false);
+        expect(tail[2].attributes.getBool('faas.coldstart'), false);
+      },
+    );
 
     test('faas.execution is taken from Function-Execution-Id header', () async {
       final handler = const Pipeline()
@@ -300,6 +303,81 @@ void main() {
       final span = spans.findSpanByName('GET');
       expect(span, isNotNull);
       expect(span!.attributes.getString('faas.execution'), isNull);
+    });
+
+    test('records faas.coldstart.duration on the first request only, '
+        'with the same low-cardinality label set as the duration '
+        'histogram', () async {
+      // Reset the cold-start latch so this test sees its first
+      // request as cold even if other tests in this file ran before.
+      debugResetColdStartForTesting();
+
+      // Use a route template that's unique to THIS test so the
+      // resulting histogram point is isolated from any cold-start
+      // observations recorded by other tests in the same process.
+      // (Histograms are process-cumulative; using a fresh label set
+      // keeps the assertion robust against test order.)
+      const route = '/cold-start-test/:case';
+      final handler = const Pipeline()
+          .addMiddleware(otelMiddleware(routeResolver: (_) => route))
+          .addHandler((_) => Response.ok('hi'));
+
+      // Three requests in a row — only the FIRST should fire the
+      // cold-start histogram.
+      for (var i = 0; i < 3; i++) {
+        await handler(_request('GET', '/cold-start-test/A'));
+      }
+
+      await harness.collectMetrics();
+      final metric = harness.metrics.findMetricByName(
+        'faas.coldstart.duration',
+      );
+      expect(metric, isNotNull);
+
+      // Find the histogram point that belongs to THIS test's label
+      // set; assert exactly one observation. If the latch were broken
+      // (or the histogram were firing on warm requests) the count
+      // would be 3, not 1.
+      final point = metric!.points.firstWhere(
+        (p) => p.attributes.getString('http.route') == route,
+        orElse: () => throw StateError(
+          'no cold-start point for route=$route; observation never '
+          'reached the histogram',
+        ),
+      );
+      expect(
+        point.histogram().count,
+        1,
+        reason:
+            'cold-start histogram fired more than once per process — '
+            'either the latch is broken or the histogram is '
+            'recording on warm requests too',
+      );
+
+      // Cardinality guardrail. Same shape as
+      // http.server.request.duration: method, route, status_code,
+      // scheme. Anything else (url.path, query string, request id,
+      // user-agent) is a leak.
+      final attributeMap = <String, Object?>{
+        for (final attr in point.attributes.toList()) attr.key: attr.value,
+      };
+      expect(
+        attributeMap.keys.toSet(),
+        <String>{
+          'http.request.method',
+          'http.route',
+          'http.response.status_code',
+          'url.scheme',
+        },
+        reason:
+            'cold-start histogram labels must be the same low-'
+            'cardinality subset as http.server.request.duration so '
+            'the two distributions are comparable',
+      );
+      expect(attributeMap['http.request.method'], 'GET');
+      expect(attributeMap['http.route'], route);
+      expect(attributeMap['http.response.status_code'], 200);
+      expect(attributeMap['url.scheme'], 'http');
     });
 
     test('records http.server.active_requests with bounded label set, '

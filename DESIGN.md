@@ -190,6 +190,15 @@ treating any later claim as a description of the current code.
   the platform's own logs and metrics. Both are span attributes
   only, never metric labels (the execution id is high-cardinality
   by design).
+- **`faas.coldstart.duration` histogram** alongside the
+  `http.server.request.duration` histogram, recorded once per
+  process — on the first request the instance handles. Same
+  low-cardinality label set as the duration histogram (method,
+  route, status_code, scheme) so dashboards can graph cold-start
+  cost distribution side-by-side with the general-purpose latency
+  distribution without folding `faas.coldstart` in as a label
+  (which would double the duration histogram's series count for
+  warm-path values that are always `false`).
 - **Testing pattern** with `InMemorySpanExporter` and now
   `MemoryMetricReader` in `weather_http_kit`. Every package has a
   ~50-line harness designed to be lifted into a reader's project
@@ -226,13 +235,11 @@ treating any later claim as a description of the current code.
 
 ### Not yet shipped
 
-- **Cold-start histogram (Functions only).** `faas.coldstart`
-  ships today as a boolean span attribute on every server span
-  — the cold-start request itself is observable in traces. The
-  remaining gap is a separate latency histogram bucketed by
-  `faas.coldstart=true` so dashboards can graph cold-start cost
-  distribution over time without folding it into the
-  general-purpose `http.server.request.duration` series.
+The original "Not yet shipped" list is empty as of this writing.
+The remaining work to publish the blog post is content (the post
+itself, screenshots, the trace-walkthrough narrative) rather than
+instrumentation gaps — every demonstrated pattern in the design
+ships in code today.
 ## Deployment matrix
 
 The same Dart code ships to three runtimes. The runtime is selected by a

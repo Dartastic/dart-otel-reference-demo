@@ -102,6 +102,30 @@ Middleware otelMiddleware({
           'as http.server.request.duration minus http.response.status_code '
           '(no status code yet — the request is in flight).',
     );
+    // Dedicated cold-start latency histogram. Fires AT MOST ONCE per
+    // process — on the first request the instance handles. Same label
+    // shape as the duration histogram so cold vs warm distributions are
+    // directly comparable in queries. Cardinality cost is trivial:
+    // one process emits one data point ever on this metric, so the
+    // total series count is bounded by (services × revisions × routes
+    // × methods × status codes), and most of those dimensions are
+    // bounded by deployment topology.
+    //
+    // We keep this separate from `http.server.request.duration` rather
+    // than folding `faas.coldstart` in as a label — that would double
+    // the duration histogram's series count permanently for warm-path
+    // values that are always `false`, which is wasteful storage and
+    // adds noise to every duration query that doesn't care about
+    // cold starts.
+    final coldStartDurationHistogram = meter.createHistogram<double>(
+      name: 'faas.coldstart.duration',
+      unit: 's',
+      description:
+          'Wall-clock duration of the first request a process handles, '
+          'in seconds. Fires once per process. Used to graph cold-start '
+          'cost distribution on the dashboard separately from the '
+          'general-purpose http.server.request.duration histogram.',
+    );
 
     return (Request request) async {
       final tracer = OTel.tracerProvider().getTracer(tracerName);
@@ -230,14 +254,21 @@ Middleware otelMiddleware({
         // contribute to the latency distribution and error-rate
         // dashboards. Attribute set is the low-cardinality subset —
         // see `_metricAttributes`.
-        durationHistogram.record(
-          stopwatch.elapsedMicroseconds / 1000000.0,
-          _metricAttributes(
-            request,
-            route: route,
-            statusCode: observedStatusCode ?? 500,
-          ),
+        final durationSeconds = stopwatch.elapsedMicroseconds / 1000000.0;
+        final metricAttrs = _metricAttributes(
+          request,
+          route: route,
+          statusCode: observedStatusCode ?? 500,
         );
+        durationHistogram.record(durationSeconds, metricAttrs);
+        // Cold-start histogram only fires on the first request handled
+        // by this process. Same labels as the regular duration
+        // histogram so the two distributions are comparable in queries
+        // (e.g. PromQL `histogram_quantile` on both with the same
+        // method/route/status_code grouping).
+        if (isColdStart) {
+          coldStartDurationHistogram.record(durationSeconds, metricAttrs);
+        }
       }
     };
   };
