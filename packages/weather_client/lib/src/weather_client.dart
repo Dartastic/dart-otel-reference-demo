@@ -3,12 +3,19 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show SocketException;
 
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 import 'package:weather_core/weather_core.dart';
+
+// `SocketException` is a `dart:io` type. On web, dart:io isn't
+// available, so we conditionally import a stub that keeps the catch
+// block well-typed (and unreachable — browser network errors arrive
+// as `http.ClientException`, handled below).
+import '_compat/socket_exception_io.dart'
+    if (dart.library.js_interop) '_compat/socket_exception_web.dart'
+    show SocketException;
 
 /// Per-request authorization-token callback for [WeatherClient].
 ///

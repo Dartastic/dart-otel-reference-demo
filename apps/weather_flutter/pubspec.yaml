@@ -1,0 +1,53 @@
+name: weather_flutter
+description: >-
+  Simplest possible Flutter web client for the demo's v1 weather API.
+  Demonstrates that the Dartastic OpenTelemetry SDK 1.1.0-beta.2+ works
+  in a browser context — Flutter web (dart2js) and Flutter wasm
+  (dart2wasm) — and propagates W3C trace context all the way through
+  weather_api, cache_service, and Open-Meteo so the entire trace tree
+  including the user's tap appears in the backend.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Shared domain models — `WeatherForecast.fromJson` decodes the
+  # public weather_api response. weather_core itself is web-safe; no
+  # platform-specific imports.
+  weather_core:
+    path: ../../packages/weather_core
+
+  # InstrumentedHttpClient lives here. Web-safe — it imports only
+  # package:http and the OTel SDK.
+  weather_http_kit:
+    path: ../../packages/weather_http_kit
+
+  # Dartastic OpenTelemetry SDK. 1.1.0-beta.2 is the first SDK
+  # release with browser support (dart2js and dart2wasm both work
+  # against the OTLP HTTP exporter).
+  dartastic_opentelemetry: ^1.1.0-beta
+  dartastic_opentelemetry_api: ^1.0.0-beta.2
+
+  http: ^1.5.0
+
+dev_dependencies:
+  # Same lint set as every other workspace package — the
+  # Dart-and-Flutter-team's own `dart_flutter_team_lints`. Aligns with
+  # the analysis_options.yaml at the repo root, which inherits from
+  # `package:dart_flutter_team_lints/analysis_options.yaml`.
+  dart_flutter_team_lints: ^3.5.0
+
+# This app deliberately ships only the web target. iOS / Android /
+# desktop platform folders are not generated — the point is to
+# demonstrate the SDK works in browser contexts. To run on other
+# platforms, do `flutter create .` here and Flutter will scaffold
+# them.
+flutter:
+  uses-material-design: true

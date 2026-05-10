@@ -25,16 +25,27 @@ const int maxForecastDays = 16;
 /// Builds the public HTTP pipeline for `weather_api`.
 ///
 /// The pipeline is:
-///   1. `otelMiddleware` — server span per request, W3C trace context and
+///   1. `_corsMiddleware` — permissive CORS so browser-hosted clients
+///      (the Flutter web demo at `apps/weather_flutter`) can call the
+///      API. Allows `traceparent`, `tracestate`, and `baggage` headers
+///      so W3C trace context propagates across origins.
+///   2. `otelMiddleware` — server span per request, W3C trace context and
 ///      baggage extraction, HTTP semconv attributes.
-///   2. The router below — `GET /weather/<city>` and `GET /healthz`.
+///   3. The router below — `GET /weather/<city>` and `GET /healthz`.
 ///
-/// The OTel middleware is the outermost layer so server spans cover even
-/// 4xx/5xx responses produced by the router itself (e.g., a 404 from an
-/// unmatched path is still an observable event).
+/// The OTel middleware is the outermost layer of the instrumented
+/// stack so server spans cover even 4xx/5xx responses produced by the
+/// router itself (e.g., a 404 from an unmatched path is still an
+/// observable event). CORS sits outside the OTel middleware so
+/// preflight `OPTIONS` requests don't pollute the trace tree with a
+/// span per request — a deliberate choice; browsers send a preflight
+/// per cross-origin request and treating each as an independent
+/// observable event would inflate metrics and trace volume without
+/// adding signal.
 Handler buildWeatherApiPipeline({required WeatherService service}) {
   final router = _buildRouter(service);
   return const Pipeline()
+      .addMiddleware(_corsMiddleware())
       .addMiddleware(
         otelMiddleware(
           tracerName: 'weather_api',
@@ -46,6 +57,34 @@ Handler buildWeatherApiPipeline({required WeatherService service}) {
         ),
       )
       .addHandler(router.call);
+}
+
+/// Permissive CORS so browsers can call the API in the demo. The demo
+/// is reference code, not a hardened deployment — production code
+/// should set `access-control-allow-origin` to a specific origin and
+/// audit the allowed headers. The allow-headers list is large enough
+/// to cover trace-context propagation (`traceparent`, `tracestate`,
+/// `baggage`) and the `content-type` headers `package:http` and
+/// browser fetch send by default.
+Middleware _corsMiddleware() {
+  const headers = <String, String>{
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-headers':
+        'Content-Type, Authorization, traceparent, tracestate, baggage',
+    'access-control-max-age': '86400',
+  };
+  return (Handler inner) {
+    return (Request request) async {
+      if (request.method == 'OPTIONS') {
+        return Response.ok('', headers: headers);
+      }
+      final response = await inner(request);
+      return response.change(
+        headers: <String, String>{...response.headers, ...headers},
+      );
+    };
+  };
 }
 
 Router _buildRouter(WeatherService service) {

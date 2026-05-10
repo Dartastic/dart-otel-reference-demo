@@ -35,6 +35,17 @@ this README is the practical documentation of what's shipped.
   `cache_service`) and `weather_cli` (calling `weather_api`),
   demonstrating the symmetry between the demo's services and a
   caller-side library.
+- A **Flutter web/wasm client** ([`apps/weather_flutter`](./apps/weather_flutter/README.md))
+  that originates the trace from a user tap. The Dartastic SDK
+  1.1.0-beta.2+ runs unchanged in the browser; the same
+  `InstrumentedHttpClient` used server-side propagates W3C trace
+  context across the HTTP boundary so the Flutter span is the root
+  of a five-level trace tree. A polished Flutter integration with
+  navigator-observer spans, route templates, error-boundary widgets,
+  and frame metrics is on the way as
+  [Flutterrific OpenTelemetry Pro][flutterrific] — the Flutter app
+  here uses the SDK directly so the reader can see exactly which
+  line does what.
 - A swarm runner (`load/run_swarm.sh`) that spawns N parallel CLI
   invocations and force-flushes the SDK before exit, plus a bundled
   Grafana dashboard whose latency heatmap shows the bimodal pattern
@@ -113,6 +124,7 @@ services/
   cache_service        cache + upstream fetcher
 apps/
   weather_cli          instrumented caller, swarmable
+  weather_flutter      Flutter web/wasm client; trace originates in a user tap
 load/
   run_swarm.sh         spawns N CLI instances for throughput demos
 dashboards/
@@ -288,6 +300,33 @@ target you can read or copy from this repo today.
   `OTEL_DEMO_MODE=true`).
 - **Bundled Grafana dashboard** in `dashboards/grafana/`,
   auto-loaded into the local stack's Grafana container.
+
+### Browser support (Flutter web + wasm)
+
+- **Flutter web/wasm client** (`apps/weather_flutter`). The simplest
+  possible Flutter screen — text field for the city, button to
+  fetch, card showing current conditions and a 3-day forecast.
+  Wires the Dartastic OpenTelemetry SDK directly: `OTel.initialize`
+  with the OTLP/HTTP endpoint, a manually-started root span around
+  the user's tap, and `InstrumentedHttpClient` for trace-context
+  propagation on every outbound request. Demonstrates that the
+  SDK's 1.1.0-beta.2 release works in dart2js AND dart2wasm
+  contexts — five-level trace tree from the tap through to
+  Open-Meteo. **Flutterrific OpenTelemetry Pro** (coming as a
+  Dartastic.io Pro package) will replace the manual SDK wiring
+  with navigator-observer spans, route-template extraction,
+  error-boundary widgets, and frame-timing metrics; the demo
+  uses the SDK directly so readers see the mechanics.
+- **Permissive CORS on `weather_api`.** A small middleware
+  (`_corsMiddleware` in `services/weather_api/lib/src/router.dart`)
+  allows the browser to send the `traceparent`, `tracestate`, and
+  `baggage` headers the W3C propagators need. Production code
+  should narrow `access-control-allow-origin` to a specific origin;
+  the demo uses `*` for reference simplicity.
+- **Web-safe `weather_client`.** The package is conditionally-
+  imported web-safe — `dart:io`'s `SocketException` is split via a
+  stub for browser builds (`packages/weather_client/lib/src/_compat/`)
+  so the client SDK builds for both io and web targets unchanged.
 
 ### Production deployment
 
@@ -583,3 +622,4 @@ Apache-2.0. See [LICENSE](./LICENSE).
 
 [sdk]: https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry
 [flutter]: https://github.com/MindfulSoftwareLLC/flutterrific_opentelemetry
+[flutterrific]: https://github.com/MindfulSoftwareLLC/flutterrific_opentelemetry

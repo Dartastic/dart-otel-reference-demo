@@ -30,5 +30,5 @@ dependencies:
   meta: ^1.16.0
 
 dev_dependencies:
-  lints: ^6.0.0
+  dart_flutter_team_lints: ^3.5.0
   test: ^1.26.0
