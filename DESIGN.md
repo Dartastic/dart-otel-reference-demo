@@ -107,11 +107,12 @@ treating any later claim as a description of the current code.
   with the active span's trace_id and span_id attached, while
   the application's own stdout listener keeps printing locally
   (additive, not a replacement). Each `Logger` becomes its own
-  OTel instrumentation scope by name. The bridge belongs in the
-  SDK as a one-flag `OTel.initialize(bridgePackageLogging:
-  true)` (or env var) — tracking issue is filed against the SDK
-  repo and `package_logging_bridge.dart` calls it out at the top
-  of the file. When the SDK ships it, this file deletes itself.
+  OTel instrumentation scope by name. The demo ships its own
+  ~40-line bridge in `package_logging_bridge.dart` — readable,
+  enough for the demo. A production-grade `package:logging`
+  bridge ships in `dartastic_opentelemetry_logging` as part of
+  Dartastic.io Pro, alongside other higher-quality telemetry
+  packages — drop it in instead when production polish matters.
 - **In-flight requests gauge** (`http.server.active_requests`) in
   `weather_http_kit`'s shelf middleware. UpDownCounter
   incremented on request start, decremented on request end (in

@@ -44,9 +44,11 @@ const double defaultSamplingRatio = 1.0;
 ///     so entries flow over OTLP with the active span's trace_id /
 ///     span_id attached. The application's own `Logger.root.onRecord`
 ///     listener (typically the one printing to stdout) keeps firing.
-///     Pass `bridgePackageLogging: false` to opt out. Convenience
-///     belongs in the SDK; tracking issue:
-///     https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry/issues/32
+///     Pass `bridgePackageLogging: false` to opt out. The demo
+///     ships its own ~40-line bridge in `package_logging_bridge.dart`;
+///     a higher-quality, production-grade alternative ships in
+///     `dartastic_opentelemetry_logging` as part of Dartastic.io
+///     Pro — see https://dartastic.io for the full Pro package set.
 ///   * `BaggageSpanProcessor` — every entry in `Context.current.baggage`
 ///     is copied onto each starting span as a string attribute. This
 ///     is what makes low-cardinality baggage entries (like a

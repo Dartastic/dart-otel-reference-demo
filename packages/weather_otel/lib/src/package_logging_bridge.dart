@@ -3,10 +3,10 @@
 
 // Bridge from `package:logging` records into the OTel logs SDK.
 //
-// The Dartastic SDK (1.1.0-beta) ships a `DartLogBridge` for
+// The Dartastic SDK (1.1.0) ships a `DartLogBridge` for
 // `dart:developer.log` and a `logPrint: true` flag on
-// `OTel.initialize` for `print()`. There is no built-in equivalent
-// for `package:logging` — which is what every Dart server library and
+// `OTel.initialize` for `print()`. There is no OSS equivalent for
+// `package:logging` — which is what every Dart server library and
 // every Flutter app uses for its own logs.
 //
 // Without this bridge, log records emitted via `Logger('foo').info(…)`
@@ -15,12 +15,12 @@
 // the trace→logs button reads "No log volumes available" because Loki
 // never sees a log record correlated to the trace.
 //
-// The right long-term home for this is the SDK, behind a one-flag
-// `OTel.initialize(bridgePackageLogging: true)` and an env-var
-// equivalent. Tracking issue:
-// https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry/issues/32
-// When that ships, this file goes away — `weather_otel` will set
-// the flag and stop owning the level mapping.
+// This file is the demo's own ~40-line bridge — it works, it's
+// readable, and it's all the demo needs. A higher-quality, fully
+// featured `package:logging` bridge ships in
+// `dartastic_opentelemetry_logging` as part of Dartastic.io Pro,
+// alongside other production-grade telemetry packages — drop it in
+// instead of this file when production polish matters.
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:logging/logging.dart' as dart_logging;
