@@ -255,15 +255,6 @@ Future<int> runWeatherCli(
         });
   } finally {
     rootSpan.end();
-    // Force-flush before shutting down so spans land in the backend
-    // before the process exits. shutdown() also flushes, but doing it
-    // explicitly here surfaces any flush errors in our log rather than
-    // burying them in shutdown's catch-and-continue path.
-    try {
-      await otel.forceFlush();
-    } on Object catch (e, st) {
-      log.warning('forceFlush failed before exit', e, st);
-    }
     await otel.shutdown();
     outboundClient.close();
   }

@@ -59,11 +59,12 @@ class WeatherOtelHandle {
     logger: logger,
   );
 
-  /// Forces the configured span processor(s) to flush any buffered spans
-  /// to their exporter. Returns when the flush completes or fails.
+  /// Forces every span processor (and meter / log processor) to flush
+  /// buffered data to its exporter. Returns when the flush completes
+  /// or fails.
   ///
   /// Useful in throughput demos and immediately before exit; production
-  /// paths should rely on the `BatchSpanProcessor`'s own scheduling.
+  /// paths should rely on the batch processors' own scheduling.
   Future<void> forceFlush() async {
     final provider = OTel.tracerProvider();
     try {
@@ -74,12 +75,8 @@ class WeatherOtelHandle {
     }
   }
 
-  /// Flushes pending spans and shuts down the SDK. Idempotent — repeated
-  /// calls return immediately without reattempting the work.
-  ///
-  /// After shutdown, no further spans can be emitted. Wire this to your
-  /// process exit hook, or call [attachToProcessLifecycle] to install
-  /// the standard SIGTERM / SIGINT handlers.
+  /// Flushes pending telemetry and shuts down the SDK. Idempotent —
+  /// repeated calls return immediately without reattempting the work.
   Future<void> shutdown() async {
     if (_shutdownStarted) return;
     _shutdownStarted = true;
@@ -90,18 +87,10 @@ class WeatherOtelHandle {
     _sigtermSub = null;
     _sigintSub = null;
 
-    final provider = OTel.tracerProvider();
     try {
-      await provider.forceFlush();
+      await OTel.shutdown();
     } on Object catch (e, st) {
-      // Log and continue — we still want to release exporter resources
-      // even if the final flush failed.
-      _logger.warning('forceFlush during shutdown failed', e, st);
-    }
-    try {
-      await provider.shutdown();
-    } on Object catch (e, st) {
-      _logger.warning('TracerProvider shutdown failed', e, st);
+      _logger.warning('OTel.shutdown failed', e, st);
     }
     _logger.info('OpenTelemetry SDK shutdown complete');
   }
