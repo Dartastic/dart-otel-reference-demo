@@ -9,7 +9,7 @@ publish_to: none
 resolution: workspace
 
 environment:
-  sdk: ^3.10.0
+  sdk: ^3.11.0
 
 dependencies:
   # OpenTelemetry SDK. The Dartastic SDK re-exports MOST of the API

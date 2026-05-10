@@ -232,13 +232,13 @@ Middleware otelMiddleware({
           } on HijackException {
             // Handler took over the underlying socket; we can't observe
             // the response. Treat this as a successful exit.
-            span.setStatus(SpanStatusCode.Ok);
+            span.setStatus(.Ok);
             rethrow;
           } catch (e, st) {
             log.warning('Handler threw an exception', e, st);
             span
               ..recordException(e, stackTrace: st)
-              ..setStatus(SpanStatusCode.Error, e.toString());
+              ..setStatus(.Error, e.toString());
             rethrow;
           }
         });
@@ -396,8 +396,8 @@ Attributes _activeRequestAttributes(Request request, {required String? route}) {
 /// semantic conventions: 4xx is Unset (callers' bad requests are not
 /// the server's fault), 5xx is Error, otherwise Ok.
 SpanStatusCode _statusForCode(int statusCode) {
-  if (statusCode >= 500) return SpanStatusCode.Error;
-  return SpanStatusCode.Ok;
+  if (statusCode >= 500) return .Error;
+  return .Ok;
 }
 
 /// Adapter that lets [W3CTraceContextPropagator] read from a

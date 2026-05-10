@@ -90,7 +90,7 @@ class InstrumentedHttpClient extends http.BaseClient {
         } catch (e, st) {
           span
             ..recordException(e, stackTrace: st)
-            ..setStatus(SpanStatusCode.Error, e.toString());
+            ..setStatus(.Error, e.toString());
           rethrow;
         }
       });
@@ -126,8 +126,8 @@ Attributes _clientRequestAttributes(http.BaseRequest request) {
 /// OTel HTTP semconv treats 4xx-and-up as errors (the server returned an
 /// error to *this* caller, regardless of whose fault it is).
 SpanStatusCode _statusForCode(int statusCode) {
-  if (statusCode >= 400) return SpanStatusCode.Error;
-  return SpanStatusCode.Ok;
+  if (statusCode >= 400) return .Error;
+  return .Ok;
 }
 
 /// Adapter that lets a propagator write into a [http.BaseRequest]'s

@@ -197,7 +197,7 @@ class OpenMeteoProvider implements WeatherProvider {
                 }),
               ),
             )
-            ..setStatus(SpanStatusCode.Ok);
+            ..setStatus(.Ok);
           return GeocodeResult(query: query, matches: const []);
         }
 
@@ -228,7 +228,7 @@ class OpenMeteoProvider implements WeatherProvider {
               WeatherSemantics.geocodeAmbiguous.key: cities.length > 1,
             }),
           )
-          ..setStatus(SpanStatusCode.Ok);
+          ..setStatus(.Ok);
 
         return GeocodeResult(
           query: query,
@@ -240,14 +240,14 @@ class OpenMeteoProvider implements WeatherProvider {
       errorKind = e.kind.name;
       span
         ..recordException(e, stackTrace: st)
-        ..setStatus(SpanStatusCode.Error, e.message);
+        ..setStatus(.Error, e.message);
       rethrow;
     } catch (e, st) {
       outcome = 'error';
       errorKind = WeatherProviderErrorKind.unknown.name;
       span
         ..recordException(e, stackTrace: st)
-        ..setStatus(SpanStatusCode.Error, e.toString());
+        ..setStatus(.Error, e.toString());
       throw WeatherProviderException(
         kind: WeatherProviderErrorKind.unknown,
         providerName: name,
@@ -333,7 +333,7 @@ class OpenMeteoProvider implements WeatherProvider {
                 WeatherSemantics.currentIsDay.key: forecast.current.isDay,
               }),
             )
-            ..setStatus(SpanStatusCode.Ok);
+            ..setStatus(.Ok);
           return forecast;
         } on FormatException catch (e, st) {
           throw WeatherProviderException(
@@ -351,14 +351,14 @@ class OpenMeteoProvider implements WeatherProvider {
       errorKind = e.kind.name;
       span
         ..recordException(e, stackTrace: st)
-        ..setStatus(SpanStatusCode.Error, e.message);
+        ..setStatus(.Error, e.message);
       rethrow;
     } catch (e, st) {
       outcome = 'error';
       errorKind = WeatherProviderErrorKind.unknown.name;
       span
         ..recordException(e, stackTrace: st)
-        ..setStatus(SpanStatusCode.Error, e.toString());
+        ..setStatus(.Error, e.toString());
       throw WeatherProviderException(
         kind: WeatherProviderErrorKind.unknown,
         providerName: name,

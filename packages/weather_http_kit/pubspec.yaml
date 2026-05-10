@@ -8,7 +8,7 @@ publish_to: none
 resolution: workspace
 
 environment:
-  sdk: ^3.10.0
+  sdk: ^3.11.0
 
 dependencies:
   # OpenTelemetry SDK. Library code; does not call OTel.initialize() —

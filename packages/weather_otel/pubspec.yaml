@@ -11,7 +11,7 @@ publish_to: none
 resolution: workspace
 
 environment:
-  sdk: ^3.10.0
+  sdk: ^3.11.0
 
 dependencies:
   # OpenTelemetry SDK. The bootstrap is a thin wrapper over OTel.initialize.

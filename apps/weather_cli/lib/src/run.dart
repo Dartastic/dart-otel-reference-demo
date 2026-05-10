@@ -211,7 +211,7 @@ Future<int> runWeatherCli(
             final geocoded = await client.geocode(city);
             if (geocoded.isEmpty) {
               err.writeln('error: no city named "$city" was found');
-              rootSpan.setStatus(SpanStatusCode.Error, 'city not found');
+              rootSpan.setStatus(.Error, 'city not found');
               return exitFailure;
             }
             final best = geocoded.best;
@@ -237,18 +237,18 @@ Future<int> runWeatherCli(
             // Ensure the trailing newline is present even if renderJson
             // didn't include one — terminals and pipes both expect it.
             if (!asJson || !renderJson(forecast).endsWith('\n')) out.writeln();
-            rootSpan.setStatus(SpanStatusCode.Ok);
+            rootSpan.setStatus(.Ok);
             return exitOk;
           } on WeatherProviderException catch (e, st) {
             rootSpan
               ..recordException(e, stackTrace: st)
-              ..setStatus(SpanStatusCode.Error, e.toString());
+              ..setStatus(.Error, e.toString());
             err.writeln('error: ${e.kind.name}: ${e.message}');
             return exitFailure;
           } on Object catch (e, st) {
             rootSpan
               ..recordException(e, stackTrace: st)
-              ..setStatus(SpanStatusCode.Error, e.toString());
+              ..setStatus(.Error, e.toString());
             err.writeln('error: unexpected: $e');
             return exitFailure;
           }

@@ -118,7 +118,7 @@ class WeatherService {
           forecastDays: forecastDays,
         );
 
-        span.setStatus(SpanStatusCode.Ok);
+        span.setStatus(.Ok);
         return forecast;
       });
     } on WeatherProviderException catch (e, st) {
@@ -126,14 +126,14 @@ class WeatherService {
       errorKind = e.kind.name;
       span
         ..recordException(e, stackTrace: st)
-        ..setStatus(SpanStatusCode.Error, e.message);
+        ..setStatus(.Error, e.message);
       rethrow;
     } catch (e, st) {
       outcome = 'error';
       errorKind = WeatherProviderErrorKind.unknown.name;
       span
         ..recordException(e, stackTrace: st)
-        ..setStatus(SpanStatusCode.Error, e.toString());
+        ..setStatus(.Error, e.toString());
       rethrow;
     } finally {
       stopwatch.stop();
