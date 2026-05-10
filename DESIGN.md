@@ -179,6 +179,17 @@ treating any later claim as a description of the current code.
   the env YAML for `cloud.platform=gcp_cloud_functions` and
   `faas.name` so dashboards can split Functions out from Cloud
   Run.
+- **`faas.coldstart` and `faas.execution` per-invocation
+  attributes** on every server span emitted by `weather_http_kit`'s
+  `otelMiddleware`. `faas.coldstart` is a boolean — `true` on the
+  first request a process handles, `false` thereafter — set via a
+  process-global latch that flips on first observation.
+  `faas.execution` is read from the `Function-Execution-Id`
+  inbound header (Cloud Functions Gen 2 sets this on every
+  invocation) and forwarded as-is so trace data correlates with
+  the platform's own logs and metrics. Both are span attributes
+  only, never metric labels (the execution id is high-cardinality
+  by design).
 - **Testing pattern** with `InMemorySpanExporter` and now
   `MemoryMetricReader` in `weather_http_kit`. Every package has a
   ~50-line harness designed to be lifted into a reader's project
@@ -203,14 +214,6 @@ treating any later claim as a description of the current code.
 
 ### Not yet shipped
 
-- **`faas.coldstart` / `faas.execution` per-invocation
-  attributes** on the Cloud Functions Gen 2 path. The bootstrap
-  doesn't currently emit these; the static `faas.name` /
-  `faas.version` resource attributes are set from the env YAML.
-  `faas.coldstart` is set on the first request a fresh instance
-  handles; `faas.execution` is a per-invocation correlation id.
-  Both are shipping-ready conceptually but require a small
-  bootstrap hook.
 - **Multiple selectable backends.** Today only Grafana LGTM is
   wired. The two backends still ahead are `stdout`
   (`ConsoleExporter`, useful for local debugging and CI) and
@@ -219,11 +222,13 @@ treating any later claim as a description of the current code.
   the SDK's contract — adding the others is mostly a matter of
   documenting the env-var values and capturing per-backend
   resource attributes.
-- **Additional metrics.** Cold-start histograms (Functions only)
-  is the remaining "Not yet shipped" metric in the original
-  list; everything else (HTTP duration histogram, cache
-  hit/miss counter, in-flight requests gauge, upstream
-  dependency-health + cost counter) is shipped.
+- **Cold-start histogram (Functions only).** `faas.coldstart`
+  ships today as a boolean span attribute on every server span
+  — the cold-start request itself is observable in traces. The
+  remaining gap is a separate latency histogram bucketed by
+  `faas.coldstart=true` so dashboards can graph cold-start cost
+  distribution over time without folding it into the
+  general-purpose `http.server.request.duration` series.
 ## Deployment matrix
 
 The same Dart code ships to three runtimes. The runtime is selected by a

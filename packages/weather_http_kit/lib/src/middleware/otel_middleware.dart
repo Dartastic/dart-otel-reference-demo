@@ -13,6 +13,28 @@ import 'package:shelf/shelf.dart';
 /// to fall back to the default (`'<METHOD>'` or `'<METHOD> <route>'`).
 typedef ServerSpanNamer = String? Function(Request request);
 
+/// Tracks whether this process has handled at least one request. The
+/// first request a Cloud Functions / Cloud Run instance handles after
+/// being spun up is the "cold start"; every subsequent request on the
+/// same instance reuses warm state. Per OTel FaaS semantic conventions
+/// `faas.coldstart` is a boolean span attribute on the server span.
+///
+/// This is process-global because the platform decides instance
+/// lifetimes — a single middleware instance per process is the standard
+/// shape, but even if multiple are constructed (e.g. tests) the first
+/// request through any of them legitimately reflects the process's
+/// cold-start cost.
+///
+/// Visible to tests via [debugResetColdStart].
+bool _coldStartUnobserved = true;
+
+/// Test-only hook to reset the cold-start latch so each test can
+/// observe the first-request behaviour deterministically. Production
+/// code never calls this — the platform owns the process lifetime.
+void debugResetColdStartForTesting() {
+  _coldStartUnobserved = true;
+}
+
 /// Optional callback that lets the application advertise a low-cardinality
 /// route template for [HttpResource.httpRoute] (e.g. `'/weather/:city'`
 /// rather than `'/weather/Toulouse'`). High-cardinality URLs as
@@ -118,11 +140,24 @@ Middleware otelMiddleware({
           spanNamer?.call(request) ??
           (route != null ? '$method $route' : method);
 
+      // Latch the cold-start signal BEFORE starting the span so the
+      // attribute reflects "was this request the cold start?" — once
+      // we've observed the first request, every subsequent one on this
+      // process is warm. The flag is process-global; we read-and-clear
+      // atomically (Dart is single-threaded per isolate, so this is
+      // safe without a lock).
+      final isColdStart = _coldStartUnobserved;
+      _coldStartUnobserved = false;
+
       final span = tracer.startSpan(
         spanName,
         kind: SpanKind.server,
         context: inboundContext,
-        attributes: _serverRequestAttributes(request, route: route),
+        attributes: _serverRequestAttributes(
+          request,
+          route: route,
+          isColdStart: isColdStart,
+        ),
       );
 
       // Stopwatch starts AFTER context extraction and span construction
@@ -218,13 +253,31 @@ Middleware otelMiddleware({
 ///     it is NOT used as a metric attribute.
 ///   * `client.address` uses shelf's connection info if available;
 ///     otherwise omitted.
-Attributes _serverRequestAttributes(Request request, {String? route}) {
+///   * `faas.coldstart` (boolean) marks the FIRST request a process
+///     handles — Cloud Functions / Cloud Run instance just started.
+///     Span attribute, NOT a metric label (boolean would be a useful
+///     dimension but fold it into the existing metrics later when the
+///     OTel HTTP semconv stabilizes around it).
+///   * `faas.execution` carries the platform-supplied execution id
+///     when present (Cloud Functions Gen 2 / Cloud Run jobs surface
+///     this via the `Function-Execution-Id` request header). Span
+///     attribute only — high-cardinality, NEVER a metric label.
+Attributes _serverRequestAttributes(
+  Request request, {
+  String? route,
+  required bool isColdStart,
+}) {
   final url = request.requestedUri;
   final attrs = <String, Object>{
     HttpResource.requestMethod.key: request.method,
     UrlResource.urlPath.key: url.path,
     UrlResource.urlScheme.key: url.scheme,
     ServerResource.serverAddress.key: url.host,
+    // Always set on every request — `false` after the first is just
+    // as informationally useful as `true` on the first, and a
+    // consistent attribute set is friendlier to downstream queries
+    // than one that sometimes-appears.
+    'faas.coldstart': isColdStart,
   };
   if (url.hasPort) {
     attrs[ServerResource.serverPort.key] = url.port;
@@ -238,6 +291,15 @@ Attributes _serverRequestAttributes(Request request, {String? route}) {
   final userAgent = request.headers['user-agent'];
   if (userAgent != null && userAgent.isNotEmpty) {
     attrs['user_agent.original'] = userAgent;
+  }
+  // Cloud Functions Gen 2 (and Cloud Run when invoked as a function)
+  // sets `Function-Execution-Id` on every inbound request. Use the
+  // platform's id rather than generating one — it correlates with the
+  // platform's own logs and metrics. Header lookup is case-insensitive
+  // via shelf's Headers map.
+  final executionId = request.headers['function-execution-id'];
+  if (executionId != null && executionId.isNotEmpty) {
+    attrs['faas.execution'] = executionId;
   }
   // Shelf does not expose peer address directly; the application can add
   // a small middleware to inject it from `request.context['shelf.io.connection_info']`

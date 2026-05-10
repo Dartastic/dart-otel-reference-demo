@@ -5,6 +5,8 @@ import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
 import 'package:weather_http_kit/weather_http_kit.dart';
+import 'package:weather_http_kit/src/middleware/otel_middleware.dart'
+    show debugResetColdStartForTesting;
 
 import '../_helpers/otel_test_harness.dart';
 
@@ -237,6 +239,68 @@ void main() {
         expect(attributeMap['url.scheme'], 'http');
       },
     );
+
+    test('first request gets faas.coldstart=true, the rest get false', () async {
+      // The latch is process-global; reset it so this test sees the
+      // first request as cold even if other tests in this file ran
+      // first.
+      debugResetColdStartForTesting();
+
+      final handler = const Pipeline()
+          .addMiddleware(otelMiddleware())
+          .addHandler((_) => Response.ok('hi'));
+
+      await handler(_request('GET', '/x'));
+      await handler(_request('GET', '/x'));
+      await handler(_request('GET', '/x'));
+
+      final spansSeen = spans.findSpansByName('GET');
+      expect(spansSeen, hasLength(greaterThanOrEqualTo(3)));
+      // Take the LAST three — earlier tests in the suite share the
+      // same exporter.
+      final tail = spansSeen.skip(spansSeen.length - 3).toList();
+      expect(tail[0].attributes.getBool('faas.coldstart'), true);
+      expect(tail[1].attributes.getBool('faas.coldstart'), false);
+      expect(tail[2].attributes.getBool('faas.coldstart'), false);
+    });
+
+    test('faas.execution is taken from Function-Execution-Id header', () async {
+      final handler = const Pipeline()
+          .addMiddleware(otelMiddleware())
+          .addHandler((_) => Response.ok('hi'));
+
+      // Cloud Functions Gen 2 sets this header on every inbound request.
+      // Real values are opaque platform ids; the middleware should
+      // forward whatever it sees rather than minting its own.
+      await handler(
+        _request(
+          'GET',
+          '/x',
+          headers: <String, String>{
+            'Function-Execution-Id': 'execution-abc-123',
+          },
+        ),
+      );
+
+      final span = spans.findSpanByName('GET');
+      expect(span, isNotNull);
+      expect(span!.attributes.getString('faas.execution'), 'execution-abc-123');
+    });
+
+    test('faas.execution is absent when the header is missing', () async {
+      // Sanity check that we don't synthesize an execution id when
+      // running outside Cloud Functions — `null` (absence) is the
+      // signal that this isn't a managed-FaaS deployment.
+      final handler = const Pipeline()
+          .addMiddleware(otelMiddleware())
+          .addHandler((_) => Response.ok('hi'));
+
+      await handler(_request('GET', '/x'));
+
+      final span = spans.findSpanByName('GET');
+      expect(span, isNotNull);
+      expect(span!.attributes.getString('faas.execution'), isNull);
+    });
 
     test('records http.server.active_requests with bounded label set, '
         'returns to baseline after each request', () async {
