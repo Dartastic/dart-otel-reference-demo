@@ -15,7 +15,7 @@ environment:
 
 dependencies:
   # OpenTelemetry SDK. The bootstrap is a thin wrapper over OTel.initialize.
-  dartastic_opentelemetry: ^1.1.0-beta.3
+  dartastic_opentelemetry: ^1.1.0-beta.4
 
   # shelf is used only for the optional demo admin endpoint.
   shelf: ^1.4.2

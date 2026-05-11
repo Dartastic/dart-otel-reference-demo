@@ -36,7 +36,7 @@ void debugResetColdStartForTesting() {
 }
 
 /// Optional callback that lets the application advertise a low-cardinality
-/// route template for [HttpResource.httpRoute] (e.g. `'/weather/:city'`
+/// route template for [Http.httpRoute] (e.g. `'/weather/:city'`
 /// rather than `'/weather/Toulouse'`). High-cardinality URLs as
 /// `http.route` will explode metric series.
 typedef RouteResolver = String? Function(Request request);
@@ -223,8 +223,8 @@ Middleware otelMiddleware({
             observedStatusCode = response.statusCode;
             span
               ..addAttributes(
-                OTel.attributesFromMap(<String, Object>{
-                  HttpResource.responseStatusCode.key: response.statusCode,
+                OTel.attributesOf<Http>({
+                  .responseStatusCode: response.statusCode,
                 }),
               )
               ..setStatus(_statusForCode(response.statusCode));
@@ -289,8 +289,8 @@ Middleware otelMiddleware({
 ///     Span attribute, NOT a metric label (boolean would be a useful
 ///     dimension but fold it into the existing metrics later when the
 ///     OTel HTTP semconv stabilizes around it).
-///   * `faas.execution` carries the platform-supplied execution id
-///     when present (Cloud Functions Gen 2 / Cloud Run jobs surface
+///   * `faas.invocation_id` carries the platform-supplied invocation
+///     id when present (Cloud Functions Gen 2 / Cloud Run jobs surface
 ///     this via the `Function-Execution-Id` request header). Span
 ///     attribute only — high-cardinality, NEVER a metric label.
 Attributes _serverRequestAttributes(
@@ -299,44 +299,51 @@ Attributes _serverRequestAttributes(
   required bool isColdStart,
 }) {
   final url = request.requestedUri;
-  final attrs = <String, Object>{
-    HttpResource.requestMethod.key: request.method,
-    UrlResource.urlPath.key: url.path,
-    UrlResource.urlScheme.key: url.scheme,
-    ServerResource.serverAddress.key: url.host,
-    // Always set on every request — `false` after the first is just
-    // as informationally useful as `true` on the first, and a
-    // consistent attribute set is friendlier to downstream queries
-    // than one that sometimes-appears.
-    'faas.coldstart': isColdStart,
-  };
-  if (url.hasPort) {
-    attrs[ServerResource.serverPort.key] = url.port;
-  }
-  if (url.hasQuery && url.query.isNotEmpty) {
-    attrs[UrlResource.urlQuery.key] = url.query;
-  }
-  if (route != null && route.isNotEmpty) {
-    attrs[HttpResource.httpRoute.key] = route;
-  }
   final userAgent = request.headers['user-agent'];
-  if (userAgent != null && userAgent.isNotEmpty) {
-    attrs['user_agent.original'] = userAgent;
-  }
   // Cloud Functions Gen 2 (and Cloud Run when invoked as a function)
   // sets `Function-Execution-Id` on every inbound request. Use the
-  // platform's id rather than generating one — it correlates with the
-  // platform's own logs and metrics. Header lookup is case-insensitive
-  // via shelf's Headers map.
-  final executionId = request.headers['function-execution-id'];
-  if (executionId != null && executionId.isNotEmpty) {
-    attrs['faas.execution'] = executionId;
-  }
-  // Shelf does not expose peer address directly; the application can add
-  // a small middleware to inject it from `request.context['shelf.io.connection_info']`
-  // when running on dart:io. We leave that out here to keep the middleware
-  // free of platform-specific code.
-  return OTel.attributesFromMap(attrs);
+  // platform's id rather than generating one — it correlates with
+  // the platform's own logs and metrics.
+  final invocationId = request.headers['function-execution-id'];
+
+  // `attributesFromSemanticMap` takes a `Map<OTelSemantic, Object>`,
+  // and every spec-enum (`Http`, `Url`, `ServerResource`, `Faas`,
+  // `UserAgent`) implements that interface — so a single literal can
+  // mix them. The inner `<Http, Object>{...}` / `<Url, Object>{...}`
+  // spreads constrain the key type per block, which is what makes
+  // dot-shorthand work (the compiler knows the prefix from the map
+  // type).
+  //
+  // Shelf does not expose peer address directly; the application can
+  // add a small middleware to inject `client.address` from
+  // `request.context['shelf.io.connection_info']` when running on
+  // dart:io. We leave that out here to keep the middleware free of
+  // platform-specific code.
+  return OTel.attributesFromSemanticMap({
+    ...<Http, Object>{
+      .requestMethod: request.method,
+      if (route != null && route.isNotEmpty) .httpRoute: route,
+    },
+    ...<Url, Object>{
+      .urlPath: url.path,
+      .urlScheme: url.scheme,
+      if (url.hasQuery && url.query.isNotEmpty) .urlQuery: url.query,
+    },
+    // ServerResource keeps its suffix because `Server` clashes with
+    // package:grpc's Server. Same dot-shorthand mechanic isn't
+    // available — the enum prefix has to be spelled out.
+    ServerResource.serverAddress: url.host,
+    if (url.hasPort) ServerResource.serverPort: url.port,
+    if (userAgent != null && userAgent.isNotEmpty)
+      UserAgent.userAgentOriginal: userAgent,
+    // FaaS keys. `faasColdstart` is always set — `false` after the
+    // first request is just as informationally useful as `true` on
+    // the first, and a consistent attribute set is friendlier to
+    // downstream queries than one that sometimes-appears.
+    Faas.faasColdstart: isColdStart,
+    if (invocationId != null && invocationId.isNotEmpty)
+      Faas.faasInvocationId: invocationId,
+  });
 }
 
 /// Builds the LOW-cardinality attribute set used as labels on the
@@ -372,11 +379,13 @@ Attributes _metricAttributes(
   required String? route,
   required int statusCode,
 }) {
-  return OTel.attributesFromMap(<String, Object>{
-    HttpResource.requestMethod.key: request.method,
-    HttpResource.httpRoute.key: route ?? 'unknown',
-    HttpResource.responseStatusCode.key: statusCode,
-    UrlResource.urlScheme.key: request.requestedUri.scheme,
+  return OTel.attributesFromSemanticMap({
+    ...<Http, Object>{
+      .requestMethod: request.method,
+      .httpRoute: route ?? 'unknown',
+      .responseStatusCode: statusCode,
+    },
+    Url.urlScheme: request.requestedUri.scheme,
   });
 }
 
@@ -385,10 +394,12 @@ Attributes _metricAttributes(
 /// request is in flight, no status code yet. Per OTel HTTP semconv
 /// for `http.server.active_requests`.
 Attributes _activeRequestAttributes(Request request, {required String? route}) {
-  return OTel.attributesFromMap(<String, Object>{
-    HttpResource.requestMethod.key: request.method,
-    HttpResource.httpRoute.key: route ?? 'unknown',
-    UrlResource.urlScheme.key: request.requestedUri.scheme,
+  return OTel.attributesFromSemanticMap({
+    ...<Http, Object>{
+      .requestMethod: request.method,
+      .httpRoute: route ?? 'unknown',
+    },
+    Url.urlScheme: request.requestedUri.scheme,
   });
 }
 

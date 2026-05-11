@@ -22,7 +22,7 @@ dependencies:
   weather_otel:
     path: ../../packages/weather_otel
 
-  dartastic_opentelemetry: ^1.1.0-beta.3
+  dartastic_opentelemetry: ^1.1.0-beta.4
 
   args: ^2.5.0
   http: ^1.5.0

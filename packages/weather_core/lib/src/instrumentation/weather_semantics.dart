@@ -6,15 +6,21 @@ import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart'
 
 /// Custom OpenTelemetry semantic attribute keys for the weather domain.
 ///
-/// Modeled on the Dartastic API's built-in semantic enums (`HttpResource`,
-/// `CloudResource`, `ClientResource`, etc.) — `implements OTelSemantic` so
-/// these enum values can be used the same way:
+/// Modeled on the Dartastic API's built-in semantic enums (`Http`,
+/// `Cloud`, `Client`, etc.) — `implements OTelSemantic` so these enum
+/// values can be mixed into the same `attributesFromSemanticMap`
+/// literal as the spec-defined ones, with Dart 3.10 dot-shorthand
+/// inside each typed spread:
 ///
 /// ```dart
-/// OTel.attributesFromMap(<String, Object>{
-///   WeatherSemantics.provider.key:    'open-meteo',
-///   WeatherSemantics.operation.key:   'getForecast',
-///   HttpResource.requestMethod.key:   'GET',
+/// OTel.attributesFromSemanticMap({
+///   ...<WeatherSemantics, Object>{
+///     .provider:  'open-meteo',
+///     .operation: 'getForecast',
+///   },
+///   ...<Http, Object>{
+///     .requestMethod: 'GET',
+///   },
 /// })
 /// ```
 ///

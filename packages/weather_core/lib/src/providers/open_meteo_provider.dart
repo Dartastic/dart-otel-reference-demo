@@ -165,15 +165,17 @@ class OpenMeteoProvider implements WeatherProvider {
     final span = OTel.tracer().startSpan(
       'open-meteo geocode',
       kind: SpanKind.client,
-      attributes: OTel.attributesFromMap(<String, Object>{
-        HttpResource.requestMethod.key: 'GET',
-        UrlResource.urlFull.key: uri.toString(),
-        ServerResource.serverAddress.key: uri.host,
-        WeatherSemantics.provider.key: name,
-        WeatherSemantics.operation.key: 'geocode',
-        // Free-text query is high-cardinality — span-only.
-        WeatherSemantics.geocodeQuery.key: query,
-        WeatherSemantics.geocodeMaxResults.key: maxResults,
+      attributes: OTel.attributesFromSemanticMap({
+        ...<Http, Object>{.requestMethod: 'GET'},
+        Url.urlFull: uri.toString(),
+        ServerResource.serverAddress: uri.host,
+        ...<WeatherSemantics, Object>{
+          .provider: name,
+          .operation: 'geocode',
+          // Free-text query is high-cardinality — span-only.
+          .geocodeQuery: query,
+          .geocodeMaxResults: maxResults,
+        },
       }),
     );
 
@@ -294,18 +296,20 @@ class OpenMeteoProvider implements WeatherProvider {
     final span = OTel.tracer().startSpan(
       'open-meteo forecast',
       kind: SpanKind.client,
-      attributes: OTel.attributesFromMap(<String, Object>{
-        HttpResource.requestMethod.key: 'GET',
-        UrlResource.urlFull.key: uri.toString(),
-        ServerResource.serverAddress.key: uri.host,
-        WeatherSemantics.provider.key: name,
-        WeatherSemantics.operation.key: 'forecast',
-        WeatherSemantics.cityId.key: city.id,
-        // City name is high-cardinality. Span attribute only.
-        WeatherSemantics.cityName.key: city.name,
-        // Country code is bounded (~250 values) — both span and metric safe.
-        WeatherSemantics.cityCountryCode.key: city.countryCode,
-        WeatherSemantics.forecastDays.key: forecastDays,
+      attributes: OTel.attributesFromSemanticMap({
+        ...<Http, Object>{.requestMethod: 'GET'},
+        Url.urlFull: uri.toString(),
+        ServerResource.serverAddress: uri.host,
+        ...<WeatherSemantics, Object>{
+          .provider: name,
+          .operation: 'forecast',
+          .cityId: city.id,
+          // City name is high-cardinality. Span attribute only.
+          .cityName: city.name,
+          // Country code is bounded (~250 values) — both span and metric safe.
+          .cityCountryCode: city.countryCode,
+          .forecastDays: forecastDays,
+        },
       }),
     );
 
@@ -415,9 +419,9 @@ class OpenMeteoProvider implements WeatherProvider {
     }
 
     span.addAttributes(
-      OTel.attributesFromMap(<String, Object>{
-        HttpResource.responseStatusCode.key: response.statusCode,
-        HttpResource.responseBodySize.key: response.bodyBytes.length,
+      OTel.attributesOf<Http>({
+        .responseStatusCode: response.statusCode,
+        .responseBodySize: response.bodyBytes.length,
       }),
     );
 

@@ -79,10 +79,10 @@ class InstrumentedHttpClient extends http.BaseClient {
           final response = await _inner.send(request);
           span
             ..addAttributes(
-              OTel.attributesFromMap(<String, Object>{
-                HttpResource.responseStatusCode.key: response.statusCode,
+              OTel.attributesOf<Http>({
+                .responseStatusCode: response.statusCode,
                 if (response.contentLength != null)
-                  HttpResource.responseBodySize.key: response.contentLength!,
+                  .responseBodySize: response.contentLength!,
               }),
             )
             ..setStatus(_statusForCode(response.statusCode));
@@ -108,18 +108,16 @@ class InstrumentedHttpClient extends http.BaseClient {
 
 Attributes _clientRequestAttributes(http.BaseRequest request) {
   final url = request.url;
-  final attrs = <String, Object>{
-    HttpResource.requestMethod.key: request.method,
-    UrlResource.urlFull.key: url.toString(),
-    ServerResource.serverAddress.key: url.host,
-  };
-  if (url.hasPort) {
-    attrs[ServerResource.serverPort.key] = url.port;
-  }
-  if (request.contentLength != null) {
-    attrs[HttpResource.requestBodySize.key] = request.contentLength!;
-  }
-  return OTel.attributesFromMap(attrs);
+  return OTel.attributesFromSemanticMap({
+    ...<Http, Object>{
+      .requestMethod: request.method,
+      if (request.contentLength != null)
+        .requestBodySize: request.contentLength!,
+    },
+    Url.urlFull: url.toString(),
+    ServerResource.serverAddress: url.host,
+    if (url.hasPort) ServerResource.serverPort: url.port,
+  });
 }
 
 /// Maps HTTP client response status to a span status. For client spans the

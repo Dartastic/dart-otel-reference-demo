@@ -213,7 +213,27 @@ target you can read or copy from this repo today.
 - **`http.server.request.duration` histogram** emitted by the shelf
   middleware with a deliberately low-cardinality label set
   (method, route TEMPLATE, status_code, scheme), pinned by a test
-  that catches accidental high-cardinality additions.
+  that catches accidental high-cardinality additions. Attribute
+  maps are built with API beta.6's typed-enum + dot-shorthand
+  pattern:
+
+  ```dart
+  OTel.attributesFromSemanticMap({
+    ...<Http, Object>{
+      .requestMethod:      request.method,
+      .httpRoute:          route ?? 'unknown',
+      .responseStatusCode: statusCode,
+    },
+    Url.urlScheme: request.requestedUri.scheme,
+  });
+  ```
+
+  Inner `<Http, Object>` and `<Url, Object>` spreads carry the
+  enum-prefix as the map's static type, which is what makes the
+  `.requestMethod` shorthand resolve. Different enum families mix
+  in the same outer literal. For a single-family map, prefer
+  `OTel.attributesOf<Http>({.responseStatusCode: 200, ...})` —
+  same shorthand, no spread.
 - **In-flight requests gauge** (`http.server.active_requests`) in
   `weather_http_kit`'s shelf middleware. UpDownCounter
   incremented on request start, decremented on request end (in

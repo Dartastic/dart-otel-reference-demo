@@ -267,31 +267,38 @@ void main() {
       },
     );
 
-    test('faas.execution is taken from Function-Execution-Id header', () async {
-      final handler = const Pipeline()
-          .addMiddleware(otelMiddleware())
-          .addHandler((_) => Response.ok('hi'));
+    test(
+      'faas.invocation_id is taken from Function-Execution-Id header',
+      () async {
+        final handler = const Pipeline()
+            .addMiddleware(otelMiddleware())
+            .addHandler((_) => Response.ok('hi'));
 
-      // Cloud Functions Gen 2 sets this header on every inbound request.
-      // Real values are opaque platform ids; the middleware should
-      // forward whatever it sees rather than minting its own.
-      await handler(
-        _request(
-          'GET',
-          '/x',
-          headers: <String, String>{
-            'Function-Execution-Id': 'execution-abc-123',
-          },
-        ),
-      );
+        // Cloud Functions Gen 2 sets this header on every inbound
+        // request. Real values are opaque platform ids; the
+        // middleware should forward whatever it sees rather than
+        // minting its own.
+        await handler(
+          _request(
+            'GET',
+            '/x',
+            headers: <String, String>{
+              'Function-Execution-Id': 'execution-abc-123',
+            },
+          ),
+        );
 
-      final span = spans.findSpanByName('GET');
-      expect(span, isNotNull);
-      expect(span!.attributes.getString('faas.execution'), 'execution-abc-123');
-    });
+        final span = spans.findSpanByName('GET');
+        expect(span, isNotNull);
+        expect(
+          span!.attributes.getString('faas.invocation_id'),
+          'execution-abc-123',
+        );
+      },
+    );
 
-    test('faas.execution is absent when the header is missing', () async {
-      // Sanity check that we don't synthesize an execution id when
+    test('faas.invocation_id is absent when the header is missing', () async {
+      // Sanity check that we don't synthesize an invocation id when
       // running outside Cloud Functions — `null` (absence) is the
       // signal that this isn't a managed-FaaS deployment.
       final handler = const Pipeline()
@@ -302,7 +309,7 @@ void main() {
 
       final span = spans.findSpanByName('GET');
       expect(span, isNotNull);
-      expect(span!.attributes.getString('faas.execution'), isNull);
+      expect(span!.attributes.getString('faas.invocation_id'), isNull);
     });
 
     test('records faas.coldstart.duration on the first request only, '
