@@ -36,7 +36,11 @@ import 'package:weather_otel/weather_otel.dart';
 const String _serviceName = 'cache-service';
 const String _serviceVersion = '0.1.0';
 
-Future<void> main(List<String> _) async {
+void main(List<String> _) {
+  runWithOtelErrorHandlers(_run);
+}
+
+Future<void> _run() async {
   _configureLogging();
   final log = Logger('cache_service.main');
 

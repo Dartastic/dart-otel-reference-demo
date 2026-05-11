@@ -32,11 +32,15 @@
 //
 // [flutterrific]: https://github.com/MindfulSoftwareLLC/flutterrific_opentelemetry
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
 import 'package:weather_core/weather_core.dart';
 import 'package:weather_http_kit/weather_http_kit.dart';
 
@@ -55,24 +59,78 @@ const String _defaultApiBaseUrl = 'http://localhost:8080';
 // change.
 const String _defaultOtlpEndpoint = 'http://localhost:4318';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  // Flutter's three-handler error-catching pattern, all wired through
+  // OTel:
+  //   * runZonedGuarded — catches uncaught async errors that escape
+  //     the framework (anything that throws inside a Future, Stream,
+  //     Timer, or Isolate callback that nothing else handles).
+  //   * FlutterError.onError — framework-detected widget / build /
+  //     layout errors raised inside the Flutter engine.
+  //   * PlatformDispatcher.instance.onError — platform-level uncaught
+  //     async errors that escape both Flutter's framework and any
+  //     zone, e.g. errors in callbacks registered directly against
+  //     the engine.
+  //
+  // Each handler records the error on the active OTel span (if any)
+  // and logs through `package:logging`, which the bridged OTel logs
+  // SDK picks up automatically. Production-grade error capture in
+  // ~25 lines.
+  final log = Logger('weather_flutter.uncaught');
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-  // Browsers can't speak OTLP gRPC, so the exporter must use OTLP/HTTP.
-  // The SDK reads `OTEL_EXPORTER_OTLP_PROTOCOL` from the env when set;
-  // browsers have no env at runtime, so the SDK falls back to its
-  // default (http/protobuf) — which is exactly what we want. The
-  // default endpoint is also http://localhost:4318, matching Grafana
-  // LGTM's OTLP HTTP port. We pass it explicitly so the demo's reader
-  // sees the URL without having to know the default.
-  await OTel.initialize(
-    serviceName: _serviceName,
-    serviceVersion: _serviceVersion,
-    endpoint: _defaultOtlpEndpoint,
-    secure: false,
+      // Browsers can't speak OTLP gRPC, so the exporter must use
+      // OTLP/HTTP. The SDK reads OTEL_EXPORTER_OTLP_PROTOCOL from
+      // the env when set; browsers have no env at runtime, so the
+      // SDK falls back to its default (http/protobuf) — which is
+      // exactly what we want. The default endpoint is also
+      // http://localhost:4318, matching Grafana LGTM's OTLP HTTP
+      // port. We pass it explicitly so the demo's reader sees the
+      // URL without having to know the default.
+      await OTel.initialize(
+        serviceName: _serviceName,
+        serviceVersion: _serviceVersion,
+        endpoint: _defaultOtlpEndpoint,
+        secure: false,
+      );
+
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        _recordOnSpan(details.exception, details.stack);
+        log.severe(
+          'FlutterError: ${details.exceptionAsString()}',
+          details.exception,
+          details.stack,
+        );
+      };
+
+      PlatformDispatcher.instance.onError = (error, stack) {
+        _recordOnSpan(error, stack);
+        log.severe('PlatformDispatcher: $error', error, stack);
+        return true; // handled
+      };
+
+      runApp(const WeatherDemoApp());
+    },
+    (error, stack) {
+      _recordOnSpan(error, stack);
+      log.severe('uncaught: $error', error, stack);
+    },
   );
+}
 
-  runApp(const WeatherDemoApp());
+/// Attaches an exception event to the currently-active OTel span,
+/// if any. Called by every error-catching handler — same shape for
+/// framework errors, platform errors, and uncaught async errors.
+void _recordOnSpan(Object error, StackTrace? stack) {
+  final span = Context.current.span;
+  if (span != null) {
+    span
+      ..recordException(error, stackTrace: stack)
+      ..setStatus(.Error, error.toString());
+  }
 }
 
 class WeatherDemoApp extends StatelessWidget {

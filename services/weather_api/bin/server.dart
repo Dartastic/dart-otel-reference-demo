@@ -41,7 +41,11 @@ const String _serviceName = 'weather-api';
 const String _serviceVersion = '0.1.0';
 const String _defaultUpstreamUrl = 'http://localhost:8090';
 
-Future<void> main(List<String> _) async {
+void main(List<String> _) {
+  runWithOtelErrorHandlers(_run);
+}
+
+Future<void> _run() async {
   _configureLogging();
   final log = Logger('weather_api.main');
 

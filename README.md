@@ -187,6 +187,17 @@ target you can read or copy from this repo today.
   Cloud Run 10-second grace window.
 - **`recordException` + `setStatus(Error)`** on every caught
   exception in instrumented code. ~13 sites across the codebase.
+- **Zone-based uncaught-error capture.** Every Dart entry point
+  (`weather_cli`, `weather_api`, `cache_service`) wraps its `main`
+  in `runWithOtelErrorHandlers` (from `weather_otel`), which
+  installs a `runZonedGuarded` handler that records the exception
+  on the active span and logs it through `package:logging` — the
+  OTel-bridged log pipeline picks it up automatically. The Flutter
+  client uses the full three-handler pattern: `runZonedGuarded` +
+  `FlutterError.onError` + `PlatformDispatcher.instance.onError`,
+  each one feeding the same `_recordOnSpan` helper so framework,
+  platform, and async-escape errors are all visible in the
+  backend.
 - **Error categorization across HTTP boundaries.**
   `WeatherProviderException` ↔ HTTP status mapping is symmetric
   between weather_api (`httpStatusForProviderError`) and

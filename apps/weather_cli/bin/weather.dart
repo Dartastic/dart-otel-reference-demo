@@ -10,11 +10,14 @@
 import 'dart:io';
 
 import 'package:weather_cli/weather_cli.dart';
+import 'package:weather_otel/weather_otel.dart';
 
-Future<void> main(List<String> args) async {
-  final code = await runWeatherCli(args);
-  // Use `exitCode` rather than `exit(code)` so any pending I/O on
-  // stdout or stderr drains before the process terminates. The Dart
-  // VM exits with this code once the event loop is empty.
-  exitCode = code;
+void main(List<String> args) {
+  runWithOtelErrorHandlers(() async {
+    final code = await runWeatherCli(args);
+    // Use `exitCode` rather than `exit(code)` so any pending I/O on
+    // stdout or stderr drains before the process terminates. The
+    // Dart VM exits with this code once the event loop is empty.
+    exitCode = code;
+  });
 }
