@@ -10,11 +10,14 @@ originates in the user's tap and flows all the way through.
 > the browser story for Dartastic OpenTelemetry:
 >
 > - Full SDK build on dart2js / dart2wasm.
-> - **OTLP/HTTP-JSON wire format on every signal.** This app uses
->   `OtlpHttpProtocol.httpJson` for traces, metrics, and logs;
->   open Chrome DevTools → Network and click "Get weather" to see
->   the JSON payloads to `/v1/traces`, `/v1/metrics`, `/v1/logs`
->   in plain text.
+> - **Wire format swaps on `kDebugMode`.** Debug builds pick
+>   `OtlpHttpProtocol.httpJson` on every signal — readable
+>   payloads in DevTools' Network tab while you're iterating on
+>   instrumentation. Release / profile builds pick protobuf —
+>   smaller payload, and end users don't see your telemetry
+>   contents in their browser. The ternary is on a compile-time
+>   `const bool` so the unused branch is tree-shaken from release
+>   builds.
 > - **Sub-millisecond span timing on web** via `WebTimeProvider`
 >   (auto-selected — routes through `performance.now() + timeOrigin`
 >   instead of `Date.now()`'s millisecond floor).

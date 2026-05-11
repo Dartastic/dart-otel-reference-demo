@@ -37,10 +37,12 @@ this README is the practical documentation of what's shipped.
   caller-side library.
 - A **Flutter web/wasm client** ([`apps/weather_flutter`](./apps/weather_flutter/README.md))
   that originates the trace from a user tap. Dartastic SDK
-  `1.1.0-beta.3` + API `1.0.0-beta.5` run unchanged in the browser,
-  with the new **OTLP/HTTP-JSON wire format** (`OtlpHttpProtocol.httpJson`,
-  added in SDK beta.3) on every signal — open DevTools' Network tab
-  and the OTLP payloads are readable JSON. Span timing is
+  `1.1.0-beta.3` + API `1.0.0-beta.5` run unchanged in the browser.
+  Wire format swaps on `kDebugMode`: **debug builds use OTLP/HTTP-
+  JSON** (`OtlpHttpProtocol.httpJson`, added in SDK beta.3) on
+  every signal so OTLP payloads are readable JSON in DevTools;
+  **release builds use protobuf** so end users don't see telemetry
+  contents in their browser. Span timing is
   sub-millisecond via the API's `WebTimeProvider` (auto-selected at
   compile time on web targets — routes through `performance.now() +
   timeOrigin` for ~5–100µs precision instead of `Date.now()`'s
@@ -323,11 +325,12 @@ target you can read or copy from this repo today.
 - **Flutter web/wasm client** (`apps/weather_flutter`). The simplest
   possible Flutter screen — text field for the city, button to
   fetch, card showing current conditions and a 3-day forecast.
-  Wires the Dartastic OpenTelemetry SDK directly: explicit
-  OTLP/HTTP-JSON exporters for traces, metrics, and logs; a
-  manually-started root span around the user's tap; and
-  `InstrumentedHttpClient` for trace-context propagation on every
-  outbound request. Demonstrates that SDK 1.1.0-beta.3 + API
+  Wires the Dartastic OpenTelemetry SDK directly: explicit OTLP
+  HTTP exporters for traces, metrics, and logs (JSON wire format
+  in debug builds, protobuf in release builds — selected via
+  `kDebugMode`); a manually-started root span around the user's
+  tap; and `InstrumentedHttpClient` for trace-context propagation
+  on every outbound request. Demonstrates that SDK 1.1.0-beta.3 + API
   1.0.0-beta.5 work in dart2js AND dart2wasm — five-level trace
   tree from the tap through to Open-Meteo, with payloads readable
   in DevTools. **Sub-millisecond span timing** on web comes for

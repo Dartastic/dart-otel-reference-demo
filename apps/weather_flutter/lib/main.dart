@@ -7,16 +7,15 @@
 //   * The Dartastic OpenTelemetry SDK runs in a browser (dart2js
 //     and dart2wasm). SDK 1.1.0-beta.3 + API 1.0.0-beta.5 are the
 //     releases that close the web story.
-//   * **OTLP/HTTP-JSON wire format on all three signals.** Beta.3
-//     adds `OtlpHttpProtocol.httpJson` — the SDK serialises spans,
-//     metrics, and log records as proto3-JSON with
-//     `Content-Type: application/json` instead of protobuf. The
-//     payload is human-readable in Chrome DevTools' Network tab
-//     (open the panel, click "Get weather", inspect the requests
-//     to `/v1/traces`, `/v1/metrics`, `/v1/logs`). Per the OTLP
-//     spec, JSON is `MAY`-support; Dartastic ships it because
-//     local debugging and browser-based viewers are dramatically
-//     easier with a readable payload.
+//   * **Debug builds use OTLP/HTTP-JSON; release builds use
+//     protobuf.** Beta.3 adds `OtlpHttpProtocol.httpJson` — the
+//     SDK serialises spans, metrics, and log records as proto3-
+//     JSON with `Content-Type: application/json`. In `kDebugMode`
+//     this app picks JSON so the OTLP payloads are human-readable
+//     in DevTools' Network tab; release builds get the smaller
+//     protobuf wire so end users don't see telemetry contents.
+//     `kDebugMode` is a compile-time constant, so the unused
+//     branch is tree-shaken away.
 //   * **Sub-millisecond span timing on web, automatically.** The
 //     API's `WebTimeProvider` is selected at compile time via
 //     `dart.library.js_interop` and routes span timestamps through
@@ -91,13 +90,23 @@ void main() {
       WidgetsFlutterBinding.ensureInitialized();
 
       // Browsers can't speak OTLP gRPC, so the exporter must use
-      // OTLP/HTTP. We pick the JSON wire format on all three signals
-      // — readable in DevTools, easier to debug than protobuf, and
-      // a showcase of beta.3's new `OtlpHttpProtocol.httpJson`.
-      // Production code typically prefers protobuf for the size
-      // win; the demo prefers JSON because the audience for this
-      // page is a developer learning the wire format.
-      const protocol = OtlpHttpProtocol.httpJson;
+      // OTLP/HTTP. Wire format swaps on `kDebugMode`:
+      //   * Debug builds → JSON. Readable in DevTools' Network tab;
+      //     the right choice while a developer is iterating on
+      //     instrumentation. Showcases beta.3's
+      //     `OtlpHttpProtocol.httpJson`.
+      //   * Release / profile builds → protobuf. Smaller payload
+      //     (the size win matters more on mobile bandwidth than on
+      //     a dev laptop), and end users don't see telemetry
+      //     contents in their browser's Network tab — readable
+      //     telemetry payloads are a developer-experience feature,
+      //     not something to ship.
+      // `kDebugMode` is a `const bool` from `flutter/foundation`, so
+      // the ternary is a compile-time constant and the unused
+      // branch tree-shakes out of release builds.
+      const protocol = kDebugMode
+          ? OtlpHttpProtocol.httpJson
+          : OtlpHttpProtocol.httpProtobuf;
       final spanExporter = OtlpHttpSpanExporter(
         OtlpHttpExporterConfig(
           endpoint: _defaultOtlpEndpoint,
