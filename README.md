@@ -37,12 +37,14 @@ this README is the practical documentation of what's shipped.
   caller-side library.
 - A **Flutter web/wasm client** ([`apps/weather_flutter`](./apps/weather_flutter/README.md))
   that originates the trace from a user tap. Dartastic SDK
-  `1.1.0-beta.2` + API `1.0.0-beta.5` run unchanged in the
-  browser, with **sub-millisecond span timing on web** via the
-  API's `WebTimeProvider` (auto-selected at compile time on web
-  targets — routes through `performance.now() + timeOrigin` for
-  ~5–100µs precision instead of `Date.now()`'s millisecond
-  floor). The same `InstrumentedHttpClient` used server-side
+  `1.1.0-beta.3` + API `1.0.0-beta.5` run unchanged in the browser,
+  with the new **OTLP/HTTP-JSON wire format** (`OtlpHttpProtocol.httpJson`,
+  added in SDK beta.3) on every signal — open DevTools' Network tab
+  and the OTLP payloads are readable JSON. Span timing is
+  sub-millisecond via the API's `WebTimeProvider` (auto-selected at
+  compile time on web targets — routes through `performance.now() +
+  timeOrigin` for ~5–100µs precision instead of `Date.now()`'s
+  millisecond floor). The same `InstrumentedHttpClient` used server-side
   propagates W3C trace context across the HTTP boundary so the
   Flutter span is the root of a five-level trace tree. A
   polished Flutter integration with navigator-observer spans,
@@ -321,13 +323,14 @@ target you can read or copy from this repo today.
 - **Flutter web/wasm client** (`apps/weather_flutter`). The simplest
   possible Flutter screen — text field for the city, button to
   fetch, card showing current conditions and a 3-day forecast.
-  Wires the Dartastic OpenTelemetry SDK directly: `OTel.initialize`
-  with the OTLP/HTTP endpoint, a manually-started root span around
-  the user's tap, and `InstrumentedHttpClient` for trace-context
-  propagation on every outbound request. Demonstrates that the
-  SDK 1.1.0-beta.2 + API 1.0.0-beta.5 work in dart2js AND
-  dart2wasm contexts — five-level trace tree from the tap through
-  to Open-Meteo. **Sub-millisecond span timing** on web comes for
+  Wires the Dartastic OpenTelemetry SDK directly: explicit
+  OTLP/HTTP-JSON exporters for traces, metrics, and logs; a
+  manually-started root span around the user's tap; and
+  `InstrumentedHttpClient` for trace-context propagation on every
+  outbound request. Demonstrates that SDK 1.1.0-beta.3 + API
+  1.0.0-beta.5 work in dart2js AND dart2wasm — five-level trace
+  tree from the tap through to Open-Meteo, with payloads readable
+  in DevTools. **Sub-millisecond span timing** on web comes for
   free: the API's `WebTimeProvider` is selected at compile time
   via `dart.library.js_interop` and routes timestamps through
   `performance.now() + timeOrigin` instead of `Date.now()`'s

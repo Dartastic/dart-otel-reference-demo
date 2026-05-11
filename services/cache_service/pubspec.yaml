@@ -19,7 +19,7 @@ dependencies:
   weather_otel:
     path: ../../packages/weather_otel
 
-  dartastic_opentelemetry: ^1.1.0-beta.2
+  dartastic_opentelemetry: ^1.1.0-beta.3
   # APICounter is the API-level instrument type that the SDK's
   # `meter.createCounter()` returns. The SDK barrel re-exports
   # most of the API but not the abstract instrument types — same

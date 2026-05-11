@@ -6,16 +6,23 @@ browser — both `dart2js` (canonical web) and `dart2wasm` (the wasm
 target) — and that the same trace tree the CLI produces
 originates in the user's tap and flows all the way through.
 
-> **Why this exists.** SDK `1.1.0-beta.2` + API `1.0.0-beta.5` are
-> the releases that close the browser story for Dartastic
-> OpenTelemetry: full SDK build on dart2js / dart2wasm, fixed
-> shutdown semantics, **and sub-millisecond span timing on web
-> via `WebTimeProvider`** (auto-selected on web targets — routes
-> through `performance.now() + timeOrigin` instead of `Date.now()`'s
-> millisecond floor). This client is the demonstration that the
-> demo's instrumentation patterns (`InstrumentedHttpClient`, W3C
-> trace-context propagation, the OTel SDK init) **all work
-> unchanged** in a Flutter web context.
+> **Why this exists.** SDK `1.1.0-beta.3` + API `1.0.0-beta.5` close
+> the browser story for Dartastic OpenTelemetry:
+>
+> - Full SDK build on dart2js / dart2wasm.
+> - **OTLP/HTTP-JSON wire format on every signal.** This app uses
+>   `OtlpHttpProtocol.httpJson` for traces, metrics, and logs;
+>   open Chrome DevTools → Network and click "Get weather" to see
+>   the JSON payloads to `/v1/traces`, `/v1/metrics`, `/v1/logs`
+>   in plain text.
+> - **Sub-millisecond span timing on web** via `WebTimeProvider`
+>   (auto-selected — routes through `performance.now() + timeOrigin`
+>   instead of `Date.now()`'s millisecond floor).
+> - Fixed shutdown semantics on short-lived processes.
+>
+> This client demonstrates that the demo's instrumentation patterns
+> (`InstrumentedHttpClient`, W3C trace-context propagation, the
+> OTel SDK init) **all work unchanged** in a Flutter web context.
 
 ## What it is
 

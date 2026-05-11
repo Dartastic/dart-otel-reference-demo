@@ -5,15 +5,24 @@
 //
 // What this demonstrates:
 //   * The Dartastic OpenTelemetry SDK runs in a browser (dart2js
-//     and dart2wasm). SDK 1.1.0-beta.2 + API 1.0.0-beta.5 are the
-//     releases where this is supported.
+//     and dart2wasm). SDK 1.1.0-beta.3 + API 1.0.0-beta.5 are the
+//     releases that close the web story.
+//   * **OTLP/HTTP-JSON wire format on all three signals.** Beta.3
+//     adds `OtlpHttpProtocol.httpJson` — the SDK serialises spans,
+//     metrics, and log records as proto3-JSON with
+//     `Content-Type: application/json` instead of protobuf. The
+//     payload is human-readable in Chrome DevTools' Network tab
+//     (open the panel, click "Get weather", inspect the requests
+//     to `/v1/traces`, `/v1/metrics`, `/v1/logs`). Per the OTLP
+//     spec, JSON is `MAY`-support; Dartastic ships it because
+//     local debugging and browser-based viewers are dramatically
+//     easier with a readable payload.
 //   * **Sub-millisecond span timing on web, automatically.** The
 //     API's `WebTimeProvider` is selected at compile time via
 //     `dart.library.js_interop` and routes span timestamps through
 //     `window.performance.now()` + `timeOrigin` (~5µs nominal,
 //     ~100µs browser-coarsened) instead of `Date.now()`'s
-//     millisecond floor. No opt-in needed; just running on web
-//     gets you the better clock.
+//     millisecond floor.
 //   * The same `InstrumentedHttpClient` used server-side runs
 //     unchanged in the browser — propagating W3C trace context and
 //     baggage on every outbound request.
@@ -82,18 +91,40 @@ void main() {
       WidgetsFlutterBinding.ensureInitialized();
 
       // Browsers can't speak OTLP gRPC, so the exporter must use
-      // OTLP/HTTP. The SDK reads OTEL_EXPORTER_OTLP_PROTOCOL from
-      // the env when set; browsers have no env at runtime, so the
-      // SDK falls back to its default (http/protobuf) — which is
-      // exactly what we want. The default endpoint is also
-      // http://localhost:4318, matching Grafana LGTM's OTLP HTTP
-      // port. We pass it explicitly so the demo's reader sees the
-      // URL without having to know the default.
+      // OTLP/HTTP. We pick the JSON wire format on all three signals
+      // — readable in DevTools, easier to debug than protobuf, and
+      // a showcase of beta.3's new `OtlpHttpProtocol.httpJson`.
+      // Production code typically prefers protobuf for the size
+      // win; the demo prefers JSON because the audience for this
+      // page is a developer learning the wire format.
+      const protocol = OtlpHttpProtocol.httpJson;
+      final spanExporter = OtlpHttpSpanExporter(
+        OtlpHttpExporterConfig(
+          endpoint: _defaultOtlpEndpoint,
+          protocol: protocol,
+        ),
+      );
+      final metricExporter = OtlpHttpMetricExporter(
+        OtlpHttpMetricExporterConfig(
+          endpoint: _defaultOtlpEndpoint,
+          protocol: protocol,
+        ),
+      );
+      final logExporter = OtlpHttpLogRecordExporter(
+        OtlpHttpLogRecordExporterConfig(
+          endpoint: _defaultOtlpEndpoint,
+          protocol: protocol,
+        ),
+      );
+
       await OTel.initialize(
         serviceName: _serviceName,
         serviceVersion: _serviceVersion,
         endpoint: _defaultOtlpEndpoint,
         secure: false,
+        spanProcessor: BatchSpanProcessor(spanExporter),
+        metricExporter: metricExporter,
+        logRecordProcessor: BatchLogRecordProcessor(logExporter),
       );
 
       FlutterError.onError = (details) {
