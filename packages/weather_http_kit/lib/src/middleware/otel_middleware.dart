@@ -67,15 +67,19 @@ Middleware otelMiddleware({
     // Set up the duration histogram once per pipeline construction —
     // not per request. The OTel SDK is expected to be initialized
     // before the middleware is wrapped (server bootstrap calls
-    // `initializeOtel` first). The metric name and unit follow the
-    // OTel HTTP semantic conventions for `http.server.request.duration`;
-    // when exported via OTLP and translated to Prometheus the name
-    // becomes `http_server_request_duration_seconds` (plus `_bucket`,
-    // `_count`, `_sum` for the histogram series).
+    // `initializeOtel` first). The metric name, instrument kind, and
+    // unit come from `HttpMetric.serverRequestDuration` — beta.6's
+    // spec-derived metric-name enum. Name + unit travel together so
+    // typos in either are compile errors; same story for the
+    // in-flight gauge below (`HttpMetric.serverActiveRequests`).
+    // When exported via OTLP and translated to Prometheus the name
+    // becomes `http_server_request_duration_seconds` (plus
+    // `_bucket`, `_count`, `_sum` for the histogram series).
     final meter = OTel.meter(tracerName);
+    const httpServerDuration = HttpMetric.serverRequestDuration;
     final durationHistogram = meter.createHistogram<double>(
-      name: 'http.server.request.duration',
-      unit: 's',
+      name: httpServerDuration.name,
+      unit: httpServerDuration.unit,
       description:
           'Duration of HTTP server requests in seconds (per OTel HTTP '
           'semantic conventions). Labels are deliberately low-cardinality '
@@ -83,18 +87,16 @@ Middleware otelMiddleware({
           'http.route, http.response.status_code, and url.scheme.',
     );
     // Saturation proxy alongside the RED-style duration histogram.
-    // Per OTel HTTP semconv `http.server.active_requests` is an
-    // UpDownCounter incremented when a request starts and
-    // decremented when it ends. We deliberately exclude
-    // `http.response.status_code` from the label set (the request
-    // is in flight so there isn't one yet) — same shape as the
-    // duration histogram minus that one label, ensuring cardinality
-    // stays bounded. The instrument's running value is "how many
-    // requests are this service handling RIGHT NOW" — a clean
-    // saturation panel on the dashboard.
+    // We deliberately exclude `http.response.status_code` from the
+    // label set (the request is in flight so there isn't one yet)
+    // — same shape as the duration histogram minus that one label,
+    // ensuring cardinality stays bounded. The instrument's running
+    // value is "how many requests are this service handling RIGHT
+    // NOW" — a clean saturation panel on the dashboard.
+    const httpServerActive = HttpMetric.serverActiveRequests;
     final activeRequests = meter.createUpDownCounter<int>(
-      name: 'http.server.active_requests',
-      unit: '{request}',
+      name: httpServerActive.name,
+      unit: httpServerActive.unit,
       description:
           'Number of HTTP server requests currently in flight, per OTel '
           'HTTP semantic conventions. Labels: http.request.method, '

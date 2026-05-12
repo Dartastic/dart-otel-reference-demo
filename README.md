@@ -213,9 +213,22 @@ target you can read or copy from this repo today.
 - **`http.server.request.duration` histogram** emitted by the shelf
   middleware with a deliberately low-cardinality label set
   (method, route TEMPLATE, status_code, scheme), pinned by a test
-  that catches accidental high-cardinality additions. Attribute
-  maps are built with API beta.6's typed-enum + dot-shorthand
-  pattern:
+  that catches accidental high-cardinality additions. The metric
+  name, instrument kind, and unit come from API beta.6's spec-
+  derived `HttpMetric` enum so typos in any of the three are
+  compile errors:
+
+  ```dart
+  const httpServerDuration = HttpMetric.serverRequestDuration;
+  meter.createHistogram<double>(
+    name: httpServerDuration.name,   // 'http.server.request.duration'
+    unit: httpServerDuration.unit,   // 's'
+    description: '…',
+  );
+  ```
+
+  Attribute maps are built with API beta.6's typed-enum + dot-
+  shorthand pattern:
 
   ```dart
   OTel.attributesFromSemanticMap({
