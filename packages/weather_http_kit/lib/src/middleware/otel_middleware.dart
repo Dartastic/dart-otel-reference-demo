@@ -104,9 +104,9 @@ Middleware otelMiddleware({
           'as http.server.request.duration minus http.response.status_code '
           '(no status code yet — the request is in flight).',
     );
-    // Dedicated cold-start latency histogram. Fires AT MOST ONCE per
-    // process — on the first request the instance handles. Same label
-    // shape as the duration histogram so cold vs warm distributions are
+    // First-request latency histogram. Fires AT MOST ONCE per process
+    // — on the first request the instance handles. Same label shape
+    // as the duration histogram so cold vs warm distributions are
     // directly comparable in queries. Cardinality cost is trivial:
     // one process emits one data point ever on this metric, so the
     // total series count is bounded by (services × revisions × routes
@@ -119,8 +119,15 @@ Middleware otelMiddleware({
     // values that are always `false`, which is wasteful storage and
     // adds noise to every duration query that doesn't care about
     // cold starts.
+    //
+    // Naming: the OTel spec's `faas.init_duration` measures pure
+    // function-initialisation time before any user code runs, which is
+    // a different signal than this histogram (we measure total
+    // first-request latency including lazy init + handler work). We
+    // use a custom `weather.*`-namespaced name to avoid implying spec
+    // semantics this metric doesn't have.
     final coldStartDurationHistogram = meter.createHistogram<double>(
-      name: 'faas.coldstart.duration',
+      name: 'weather.coldstart_request.duration',
       unit: 's',
       description:
           'Wall-clock duration of the first request a process handles, '

@@ -300,7 +300,7 @@ target you can read or copy from this repo today.
   the platform's own logs and metrics. Both are span attributes
   only, never metric labels (the execution id is high-cardinality
   by design).
-- **`faas.coldstart.duration` histogram** alongside the
+- **`weather.coldstart_request.duration` histogram** alongside the
   `http.server.request.duration` histogram, recorded once per
   process — on the first request the instance handles. Same
   low-cardinality label set as the duration histogram (method,
@@ -308,7 +308,11 @@ target you can read or copy from this repo today.
   cost distribution side-by-side with the general-purpose latency
   distribution without folding `faas.coldstart` in as a label
   (which would double the duration histogram's series count for
-  warm-path values that are always `false`).
+  warm-path values that are always `false`). Named in the demo's
+  custom `weather.*` namespace rather than `faas.*` because the
+  OTel spec's `faas.init_duration` measures pure init time before
+  user code runs, which is a different signal than total
+  first-request latency.
 
 ### Logs
 

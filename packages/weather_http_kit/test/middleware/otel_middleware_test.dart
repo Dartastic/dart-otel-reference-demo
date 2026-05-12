@@ -312,9 +312,9 @@ void main() {
       expect(span!.attributes.getString('faas.invocation_id'), isNull);
     });
 
-    test('records faas.coldstart.duration on the first request only, '
-        'with the same low-cardinality label set as the duration '
-        'histogram', () async {
+    test('records weather.coldstart_request.duration on the first '
+        'request only, with the same low-cardinality label set as the '
+        'duration histogram', () async {
       // Reset the cold-start latch so this test sees its first
       // request as cold even if other tests in this file ran before.
       debugResetColdStartForTesting();
@@ -337,7 +337,7 @@ void main() {
 
       await harness.collectMetrics();
       final metric = harness.metrics.findMetricByName(
-        'faas.coldstart.duration',
+        'weather.coldstart_request.duration',
       );
       expect(metric, isNotNull);
 
