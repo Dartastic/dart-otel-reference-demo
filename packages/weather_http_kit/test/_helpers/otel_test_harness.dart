@@ -161,7 +161,6 @@ Future<OtelTestHarness> maybeInitializeOtelForTest() async {
   // export interval.
   final reader = OnDemandMetricReader(metricExporter);
   await OTel.initialize(
-    endpoint: 'http://localhost:4317',
     serviceName: 'weather_http_kit_test',
     serviceVersion: '0.0.0-test',
     spanProcessor: SimpleSpanProcessor(spanExporter),

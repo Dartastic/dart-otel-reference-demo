@@ -144,7 +144,6 @@ Future<TestHarness> maybeInitializeOtelForTest() async {
   final metricExporter = InMemoryMetricExporter();
   final reader = OnDemandMetricReader(metricExporter);
   await OTel.initialize(
-    endpoint: 'http://localhost:4317',
     serviceName: 'weather_core_test',
     serviceVersion: '0.0.0-test',
     spanProcessor: SimpleSpanProcessor(spanExporter),

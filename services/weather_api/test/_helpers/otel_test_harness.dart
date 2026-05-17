@@ -41,7 +41,6 @@ Future<InMemorySpanExporter> maybeInitializeOtelForTest() async {
   if (_sharedExporter != null) return _sharedExporter!;
   final exporter = InMemorySpanExporter();
   await OTel.initialize(
-    endpoint: 'http://localhost:4317',
     serviceName: 'weather_api_test',
     serviceVersion: '0.0.0-test',
     spanProcessor: SimpleSpanProcessor(exporter),
