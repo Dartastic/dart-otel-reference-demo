@@ -71,7 +71,7 @@ tool/run.sh cache_service
 tool/run.sh weather_api
 
 # Then:
-curl -s 'http://localhost:8080/weather/Toulouse?days=3' | jq .
+curl -s 'http://localhost:8080/weather/Boston?days=3' | jq .
 ```
 
 The default `WEATHER_UPSTREAM_URL` points at `http://localhost:8090` so

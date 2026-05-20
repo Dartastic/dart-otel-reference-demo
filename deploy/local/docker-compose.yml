@@ -27,7 +27,7 @@
 #
 # Send a test request:
 #
-#     curl -s 'http://localhost:8080/weather/Toulouse?days=3' | jq .
+#     curl -s 'http://localhost:8080/weather/Boston?days=3' | jq .
 #
 # Open Grafana → Explore → Tempo, search for service.name="weather-api"
 # and find the trace your curl produced — it should fan out across

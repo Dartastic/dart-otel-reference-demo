@@ -27,9 +27,9 @@ HTTP/1.1 200 OK
 Content-Type: application/json
 
 {
-  "query": "Toulouse",
+  "query": "Boston",
   "matches": [
-    { "id": 2972315, "name": "Toulouse", "latitude": 43.604, ... }
+    { "id": 2972315, "name": "Boston", "latitude": 43.604, ... }
   ]
 }
 ```
@@ -43,7 +43,7 @@ POST /v1/forecast HTTP/1.1
 Content-Type: application/json
 
 {
-  "city": { "id": 2972315, "name": "Toulouse", "latitude": 43.604, ... },
+  "city": { "id": 2972315, "name": "Boston", "latitude": 43.604, ... },
   "forecastDays": 3
 }
 ```

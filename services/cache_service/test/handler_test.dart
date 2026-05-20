@@ -42,9 +42,9 @@ void main() {
 
   // ---------- Test fixtures ----------
 
-  const toulouse = City(
+  const boston = City(
     id: 2972315,
-    name: 'Toulouse',
+    name: 'Boston',
     latitude: 43.6,
     longitude: 1.44,
     country: 'France',
@@ -109,14 +109,14 @@ void main() {
   group('GET /v1/geocode', () {
     test('200 with matches on a fresh key (cache miss)', () async {
       upstream.geocodeImpl = (q, _) =>
-          GeocodeResult(query: q, matches: const [toulouse]);
+          GeocodeResult(query: q, matches: const [boston]);
 
-      final response = await handler(get('/v1/geocode?q=Toulouse'));
+      final response = await handler(get('/v1/geocode?q=Boston'));
 
       expect(response.statusCode, 200);
       final body =
           jsonDecode(await response.readAsString()) as Map<String, dynamic>;
-      expect(body['query'], 'Toulouse');
+      expect(body['query'], 'Boston');
       expect((body['matches'] as List), hasLength(1));
       expect(upstream.geocodeCallCount, 1);
     });
@@ -125,23 +125,23 @@ void main() {
       'caches by lowercased query — second call does not hit upstream',
       () async {
         upstream.geocodeImpl = (q, _) =>
-            GeocodeResult(query: q, matches: const [toulouse]);
+            GeocodeResult(query: q, matches: const [boston]);
 
-        await handler(get('/v1/geocode?q=Toulouse'));
-        await handler(get('/v1/geocode?q=toulouse')); // different case
-        await handler(get('/v1/geocode?q=TOULOUSE')); // different case
+        await handler(get('/v1/geocode?q=Boston'));
+        await handler(get('/v1/geocode?q=boston')); // different case
+        await handler(get('/v1/geocode?q=BOSTON')); // different case
 
-        // All three resolve to the same cache key ('toulouse', 5).
+        // All three resolve to the same cache key ('boston', 5).
         expect(upstream.geocodeCallCount, 1);
       },
     );
 
     test('annotates the server span with cache outcome', () async {
       upstream.geocodeImpl = (q, _) =>
-          GeocodeResult(query: q, matches: const [toulouse]);
+          GeocodeResult(query: q, matches: const [boston]);
 
       // First call: miss.
-      await handler(get('/v1/geocode?q=Toulouse'));
+      await handler(get('/v1/geocode?q=Boston'));
       var span = spans.findSpanByName('GET /v1/geocode')!;
       expect(span.attributes.getString('weather.cache.outcome'), 'miss');
       expect(span.attributes.getString('weather.cache.namespace'), 'geocode');
@@ -150,7 +150,7 @@ void main() {
       spans.clear();
 
       // Second call to the same key: hit.
-      await handler(get('/v1/geocode?q=Toulouse'));
+      await handler(get('/v1/geocode?q=Boston'));
       span = spans.findSpanByName('GET /v1/geocode')!;
       expect(span.attributes.getString('weather.cache.outcome'), 'hit');
       expect(span.spanEvents?.any((e) => e.name == 'cache.hit'), true);
@@ -175,7 +175,7 @@ void main() {
         message: 'upstream returned 500',
       );
 
-      final response = await handler(get('/v1/geocode?q=Toulouse'));
+      final response = await handler(get('/v1/geocode?q=Boston'));
       expect(response.statusCode, 502);
     });
   });
@@ -184,7 +184,7 @@ void main() {
 
   group('POST /v1/forecast', () {
     Object _validBody({int days = 3}) => <String, dynamic>{
-      'city': toulouse.toJson(),
+      'city': boston.toJson(),
       'forecastDays': days,
     };
 
@@ -250,7 +250,7 @@ void main() {
 
     test('400 on missing forecastDays', () async {
       final response = await handler(
-        post('/v1/forecast', <String, dynamic>{'city': toulouse.toJson()}),
+        post('/v1/forecast', <String, dynamic>{'city': boston.toJson()}),
       );
       expect(response.statusCode, 400);
     });
@@ -310,7 +310,7 @@ void main() {
 
     test('increments on hit and miss with bounded label set', () async {
       upstream.geocodeImpl = (q, _) =>
-          GeocodeResult(query: q, matches: const [toulouse]);
+          GeocodeResult(query: q, matches: const [boston]);
 
       // Snapshot the cumulative running total first.
       await harness.collectMetrics();
@@ -320,9 +320,9 @@ void main() {
 
       // Two distinct keys produce two misses, then a repeat of the
       // first key is a hit.
-      await handler(get('/v1/geocode?q=Toulouse'));
+      await handler(get('/v1/geocode?q=Boston'));
       await handler(get('/v1/geocode?q=Berlin'));
-      await handler(get('/v1/geocode?q=Toulouse'));
+      await handler(get('/v1/geocode?q=Boston'));
 
       await harness.collectMetrics();
       expect(countOf('geocode', 'miss') - missBefore, 2);

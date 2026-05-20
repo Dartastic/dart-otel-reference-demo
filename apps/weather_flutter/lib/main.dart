@@ -198,7 +198,7 @@ class WeatherHomePage extends StatefulWidget {
 }
 
 class _WeatherHomePageState extends State<WeatherHomePage> {
-  final _cityController = TextEditingController(text: 'Toulouse');
+  final _cityController = TextEditingController(text: 'Boston');
   late final http.Client _httpClient;
   late final Tracer _tracer;
 
@@ -320,7 +320,7 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
                   controller: _cityController,
                   decoration: const InputDecoration(
                     labelText: 'City',
-                    hintText: 'e.g. Toulouse, Paris, Tokyo',
+                    hintText: 'e.g. Boston, Paris, Tokyo',
                     border: OutlineInputBorder(),
                   ),
                   textInputAction: TextInputAction.go,

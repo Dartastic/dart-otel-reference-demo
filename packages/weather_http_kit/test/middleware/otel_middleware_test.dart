@@ -49,7 +49,7 @@ void main() {
           .addMiddleware(otelMiddleware(routeResolver: (_) => '/weather/:city'))
           .addHandler((Request req) => Response.ok('hi'));
 
-      await handler(_request('GET', '/weather/Toulouse'));
+      await handler(_request('GET', '/weather/Boston'));
 
       final span = spans.findSpanByName('GET /weather/:city');
       expect(span, isNotNull);
@@ -154,7 +154,7 @@ void main() {
             return Response.ok('hi');
           });
 
-      await handler(_request('GET', '/weather/Toulouse?units=metric'));
+      await handler(_request('GET', '/weather/Boston?units=metric'));
       expect(capturedActive, isNotNull);
       expect(capturedActive!.name, 'GET');
       expect(capturedActive!.kind, SpanKind.server);
@@ -200,7 +200,7 @@ void main() {
               otelMiddleware(routeResolver: (_) => '/weather/:city'),
             )
             .addHandler((_) => Response.ok('hi'));
-        await handler(_request('GET', '/weather/Toulouse'));
+        await handler(_request('GET', '/weather/Boston'));
 
         await harness.collectMetrics();
 
@@ -414,7 +414,7 @@ void main() {
       // baseline. Awaiting the handler means each completes before
       // the next starts — so the gauge goes 0 → 1 → 0 → 1 → 0.
       for (var i = 0; i < 3; i++) {
-        await handler(_request('GET', '/weather/Toulouse'));
+        await handler(_request('GET', '/weather/Boston'));
       }
 
       await harness.collectMetrics();

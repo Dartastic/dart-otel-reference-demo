@@ -9,7 +9,7 @@
 ///   client: InstrumentedHttpClient(inner: http.Client()),
 /// );
 /// final forecast = await WeatherService(provider: client)
-///     .getForecast(cityName: 'Toulouse', forecastDays: 3);
+///     .getForecast(cityName: 'Boston', forecastDays: 3);
 /// ```
 ///
 /// See the package README for the wire-format contract.

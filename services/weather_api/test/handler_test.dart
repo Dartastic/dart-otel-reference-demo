@@ -38,9 +38,9 @@ void main() {
 
   // ---------- Test fixtures ----------
 
-  const toulouse = City(
+  const boston = City(
     id: 1,
-    name: 'Toulouse',
+    name: 'Boston',
     latitude: 43.6,
     longitude: 1.44,
     country: 'France',
@@ -104,10 +104,10 @@ void main() {
   group('GET /weather/<city>', () {
     test('returns 200 with the forecast JSON on the happy path', () async {
       provider.geocodeImpl = (q, _) =>
-          GeocodeResult(query: q, matches: const [toulouse]);
+          GeocodeResult(query: q, matches: const [boston]);
       provider.forecastImpl = forecastFor;
 
-      final response = await handler(get('/weather/Toulouse?days=2'));
+      final response = await handler(get('/weather/Boston?days=2'));
 
       expect(response.statusCode, 200);
       expect(response.headers['content-type'], contains('application/json'));
@@ -116,16 +116,16 @@ void main() {
       // Sanity-check the structure — the round-trip behavior of the
       // serializers themselves is exercised in weather_core's tests.
       expect(body['city'], isA<Map<String, dynamic>>());
-      expect((body['city'] as Map<String, dynamic>)['name'], 'Toulouse');
+      expect((body['city'] as Map<String, dynamic>)['name'], 'Boston');
       expect((body['daily'] as List), hasLength(2));
     });
 
     test('uses defaultForecastDays when days is omitted', () async {
       provider.geocodeImpl = (q, _) =>
-          GeocodeResult(query: q, matches: const [toulouse]);
+          GeocodeResult(query: q, matches: const [boston]);
       provider.forecastImpl = forecastFor;
 
-      final response = await handler(get('/weather/Toulouse'));
+      final response = await handler(get('/weather/Boston'));
 
       expect(response.statusCode, 200);
       final body =
@@ -134,7 +134,7 @@ void main() {
     });
 
     test('returns 400 with diagnostic body for non-integer days', () async {
-      final response = await handler(get('/weather/Toulouse?days=abc'));
+      final response = await handler(get('/weather/Boston?days=abc'));
       expect(response.statusCode, 400);
       final body =
           jsonDecode(await response.readAsString()) as Map<String, dynamic>;
@@ -143,7 +143,7 @@ void main() {
     });
 
     test('returns 400 for days out of the supported range', () async {
-      final response = await handler(get('/weather/Toulouse?days=100'));
+      final response = await handler(get('/weather/Boston?days=100'));
       expect(response.statusCode, 400);
     });
 
@@ -165,7 +165,7 @@ void main() {
         message: 'upstream returned 500',
       );
 
-      final response = await handler(get('/weather/Toulouse'));
+      final response = await handler(get('/weather/Boston'));
       expect(response.statusCode, 502);
     });
 
@@ -176,7 +176,7 @@ void main() {
         message: 'connection refused',
       );
 
-      final response = await handler(get('/weather/Toulouse'));
+      final response = await handler(get('/weather/Boston'));
       expect(response.statusCode, 503);
     });
 
@@ -187,16 +187,16 @@ void main() {
         message: 'rate limited',
       );
 
-      final response = await handler(get('/weather/Toulouse'));
+      final response = await handler(get('/weather/Boston'));
       expect(response.statusCode, 429);
     });
 
     test('emits a server span with the route template name', () async {
       provider.geocodeImpl = (q, _) =>
-          GeocodeResult(query: q, matches: const [toulouse]);
+          GeocodeResult(query: q, matches: const [boston]);
       provider.forecastImpl = forecastFor;
 
-      await handler(get('/weather/Toulouse?days=1'));
+      await handler(get('/weather/Boston?days=1'));
 
       final span = spans.findSpanByName('GET /weather/:city');
       expect(span, isNotNull);

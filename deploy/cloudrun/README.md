@@ -75,7 +75,7 @@ After `deploy-weather-api.sh` finishes, it prints the public URL.
 Drive a request:
 
 ```sh
-curl -s 'https://weather-api-XXX.a.run.app/weather/Toulouse?days=3' | jq .
+curl -s 'https://weather-api-XXX.a.run.app/weather/Boston?days=3' | jq .
 ```
 
 The same trace tree the local stack produces — `weather-api` →

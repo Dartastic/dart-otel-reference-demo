@@ -5,9 +5,9 @@ import 'package:test/test.dart';
 import 'package:weather_core/weather_core.dart';
 
 void main() {
-  const toulouse = City(
+  const boston = City(
     id: 1,
-    name: 'Toulouse',
+    name: 'Boston',
     latitude: 43.6,
     longitude: 1.44,
     country: 'France',
@@ -52,7 +52,7 @@ void main() {
     test('transposes daily column arrays into row objects', () {
       final fetchedAt = DateTime.utc(2026, 5, 9, 12);
       final forecast = WeatherForecast.fromOpenMeteoJson(
-        city: toulouse,
+        city: boston,
         json: validForecastJson(),
         fetchedAt: fetchedAt,
       );
@@ -74,7 +74,7 @@ void main() {
 
     test('parses current observation', () {
       final forecast = WeatherForecast.fromOpenMeteoJson(
-        city: toulouse,
+        city: boston,
         json: validForecastJson(),
         fetchedAt: DateTime.utc(2026, 5, 9, 12),
       );
@@ -95,7 +95,7 @@ void main() {
         ];
         expect(
           () => WeatherForecast.fromOpenMeteoJson(
-            city: toulouse,
+            city: boston,
             json: json,
             fetchedAt: DateTime.utc(2026, 5, 9, 12),
           ),
@@ -108,7 +108,7 @@ void main() {
       final json = validForecastJson()..remove('current');
       expect(
         () => WeatherForecast.fromOpenMeteoJson(
-          city: toulouse,
+          city: boston,
           json: json,
           fetchedAt: DateTime.utc(2026, 5, 9, 12),
         ),
@@ -122,7 +122,7 @@ void main() {
         'precipitation_probability_max',
       );
       final forecast = WeatherForecast.fromOpenMeteoJson(
-        city: toulouse,
+        city: boston,
         json: json,
         fetchedAt: DateTime.utc(2026, 5, 9, 12),
       );

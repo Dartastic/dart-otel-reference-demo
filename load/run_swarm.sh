@@ -60,7 +60,7 @@ BIN=""
 # repeats some entries so cache-hit dynamics show up after the first
 # pass through the list.
 CITIES=(
-  "Toulouse"
+  "Boston"
   "Paris"
   "Tokyo"
   "London"
@@ -68,7 +68,7 @@ CITIES=(
   "Sydney"
   "Mumbai"
   "São Paulo"
-  "Toulouse"
+  "Boston"
   "Tokyo"
   "Cape Town"
   "Reykjavik"

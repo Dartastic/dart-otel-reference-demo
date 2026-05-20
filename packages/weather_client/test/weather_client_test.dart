@@ -15,9 +15,9 @@ void main() {
 
   // ---------- Test fixtures ----------
 
-  const toulouse = City(
+  const boston = City(
     id: 2972315,
-    name: 'Toulouse',
+    name: 'Boston',
     latitude: 43.604,
     longitude: 1.444,
     country: 'France',
@@ -60,12 +60,12 @@ void main() {
       final mock = MockClient((request) async {
         expect(request.method, 'GET');
         expect(request.url.path, '/v1/geocode');
-        expect(request.url.queryParameters['q'], 'Toulouse');
+        expect(request.url.queryParameters['q'], 'Boston');
         expect(request.url.queryParameters['limit'], '5');
         return http.Response(
           jsonEncode(<String, dynamic>{
-            'query': 'Toulouse',
-            'matches': <Map<String, dynamic>>[toulouse.toJson()],
+            'query': 'Boston',
+            'matches': <Map<String, dynamic>>[boston.toJson()],
           }),
           200,
           headers: <String, String>{'content-type': 'application/json'},
@@ -73,11 +73,11 @@ void main() {
       });
       final client = WeatherClient(baseUrl: baseUrl, client: mock);
 
-      final result = await client.geocode('Toulouse');
+      final result = await client.geocode('Boston');
 
       expect(result.matches, hasLength(1));
-      expect(result.matches.first, toulouse);
-      expect(result.query, 'Toulouse');
+      expect(result.matches.first, boston);
+      expect(result.query, 'Boston');
     });
 
     test('passes through maxResults as the limit query parameter', () async {
@@ -132,14 +132,14 @@ void main() {
 
   group('WeatherClient.getForecast', () {
     test('POSTs JSON body and parses the WeatherForecast response', () async {
-      final expected = _sampleForecast(toulouse, 2);
+      final expected = _sampleForecast(boston, 2);
       final mock = MockClient((request) async {
         expect(request.method, 'POST');
         expect(request.url.path, '/v1/forecast');
         expect(request.headers['content-type'], contains('application/json'));
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['forecastDays'], 2);
-        expect(body['city'], toulouse.toJson());
+        expect(body['city'], boston.toJson());
         return http.Response(
           jsonEncode(expected.toJson()),
           200,
@@ -148,7 +148,7 @@ void main() {
       });
       final client = WeatherClient(baseUrl: baseUrl, client: mock);
 
-      final actual = await client.getForecast(city: toulouse, forecastDays: 2);
+      final actual = await client.getForecast(city: boston, forecastDays: 2);
 
       expect(actual, expected);
     });
@@ -157,7 +157,7 @@ void main() {
       final mock = MockClient((_) async {
         return http.Response(
           jsonEncode(<String, dynamic>{
-            'city': toulouse.toJson(),
+            'city': boston.toJson(),
             // 'current' missing
             'daily': <dynamic>[],
             'fetchedAt': '2026-05-09T12:00:00Z',
@@ -167,7 +167,7 @@ void main() {
       });
       final client = WeatherClient(baseUrl: baseUrl, client: mock);
       await expectLater(
-        client.getForecast(city: toulouse, forecastDays: 1),
+        client.getForecast(city: boston, forecastDays: 1),
         throwsA(
           isA<WeatherProviderException>().having(
             (e) => e.kind,

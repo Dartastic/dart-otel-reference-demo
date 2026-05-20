@@ -8,7 +8,7 @@ void main() {
   group('City.fromOpenMeteoJson', () {
     final validJson = <String, dynamic>{
       'id': 2972315,
-      'name': 'Toulouse',
+      'name': 'Boston',
       'latitude': 43.60426,
       'longitude': 1.44367,
       'country': 'France',
@@ -22,7 +22,7 @@ void main() {
     test('parses a full Open-Meteo geocoding response', () {
       final city = City.fromOpenMeteoJson(validJson);
       expect(city.id, 2972315);
-      expect(city.name, 'Toulouse');
+      expect(city.name, 'Boston');
       expect(city.latitude, closeTo(43.60426, 1e-6));
       expect(city.longitude, closeTo(1.44367, 1e-6));
       expect(city.country, 'France');
@@ -109,9 +109,9 @@ void main() {
   });
 
   group('GeocodeResult', () {
-    final toulouse = const City(
+    final boston = const City(
       id: 1,
-      name: 'Toulouse',
+      name: 'Boston',
       latitude: 43.6,
       longitude: 1.44,
       country: 'France',
@@ -132,17 +132,17 @@ void main() {
       expect(empty.isNotEmpty, false);
       expect(empty.isAmbiguous, false);
 
-      final single = GeocodeResult(query: 'q', matches: [toulouse]);
+      final single = GeocodeResult(query: 'q', matches: [boston]);
       expect(single.isEmpty, false);
       expect(single.isAmbiguous, false);
 
-      final multi = GeocodeResult(query: 'q', matches: [toulouse, paris]);
+      final multi = GeocodeResult(query: 'q', matches: [boston, paris]);
       expect(multi.isAmbiguous, true);
     });
 
     test('best returns first match when present', () {
-      final result = GeocodeResult(query: 'q', matches: [toulouse, paris]);
-      expect(result.best, toulouse);
+      final result = GeocodeResult(query: 'q', matches: [boston, paris]);
+      expect(result.best, boston);
     });
 
     test('best throws StateError on empty result', () {

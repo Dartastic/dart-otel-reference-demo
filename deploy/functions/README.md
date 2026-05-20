@@ -76,7 +76,7 @@ injects it as `WEATHER_UPSTREAM_URL`.
 After `deploy-weather-api.sh` finishes:
 
 ```sh
-curl -s 'https://weather-api-fn-XXX.a.run.app/weather/Toulouse?days=3' | jq .
+curl -s 'https://weather-api-fn-XXX.a.run.app/weather/Boston?days=3' | jq .
 ```
 
 The trace tree fans out the same as the Cloud Run path —

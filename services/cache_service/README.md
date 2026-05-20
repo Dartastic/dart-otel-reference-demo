@@ -69,7 +69,7 @@ geocoding answers don't." Tune via env in production deployments.
 tool/run.sh cache_service
 
 # In another shell:
-curl -s 'http://localhost:8090/v1/geocode?q=Toulouse' | jq .
+curl -s 'http://localhost:8090/v1/geocode?q=Boston' | jq .
 
 curl -sX POST 'http://localhost:8090/v1/forecast' \
      -H 'content-type: application/json' \

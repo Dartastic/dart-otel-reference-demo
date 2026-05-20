@@ -54,6 +54,16 @@ this README is the practical documentation of what's shipped.
   on the way as [Flutterrific OpenTelemetry Pro][flutterrific] —
   the Flutter app here uses the SDK directly so the reader can
   see exactly which line does what.
+- A **Genkit AI demo** ([`apps/dinger`](./apps/dinger/README.md)) —
+  "Dinger", a baseball-highlights app where Google's Genkit (with
+  Workiva's OpenTelemetry swapped out for **Dartastic**) pulls live
+  MLB stats and writes recaps. It showcases Genkit **tool-calling +
+  structured output**, and because Genkit runs on Dartastic, the flow,
+  the model call, and the tool's live MLB fetch all appear as one trace
+  in the same LGTM/Grafana stack. Self-contained (not a workspace
+  member) so the weather demo stays dependency-clean; depends on a
+  local `genkit-dart` clone via path until Genkit ships the Dartastic
+  dep on pub.dev.
 - A swarm runner (`load/run_swarm.sh`) that spawns N parallel CLI
   invocations and force-flushes the SDK before exit, plus a bundled
   Grafana dashboard whose latency heatmap shows the bimodal pattern
@@ -70,7 +80,7 @@ this README is the practical documentation of what's shipped.
 tool/stack.sh up
 
 # In another shell, drive a request through the stack:
-curl -s 'http://localhost:8080/weather/Toulouse?days=3' | jq .
+curl -s 'http://localhost:8080/weather/Boston?days=3' | jq .
 
 # Or generate enough volume to make the dashboards interesting:
 load/run_swarm.sh --total 500 --parallel 25
@@ -133,6 +143,8 @@ services/
 apps/
   weather_cli          instrumented caller, swarmable
   weather_flutter      Flutter web/wasm client; trace originates in a user tap
+  dinger               Genkit AI baseball-highlights demo (Genkit on Dartastic);
+                       self-contained, not a workspace member
 load/
   run_swarm.sh         spawns N CLI instances for throughput demos
 dashboards/
@@ -626,7 +638,7 @@ setUpAll(() async => spans = await maybeInitializeOtelForTest());
 setUp(() => spans.clear());
 
 test('records the right span on geocode', () async {
-  await provider.geocode('Toulouse');
+  await provider.geocode('Boston');
   final span = spans.findSpanByName('open-meteo geocode');
   expect(span, isNotNull);
   expect(span!.kind, SpanKind.client);

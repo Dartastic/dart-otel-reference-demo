@@ -37,7 +37,7 @@ void debugResetColdStartForTesting() {
 
 /// Optional callback that lets the application advertise a low-cardinality
 /// route template for [Http.httpRoute] (e.g. `'/weather/:city'`
-/// rather than `'/weather/Toulouse'`). High-cardinality URLs as
+/// rather than `'/weather/Boston'`). High-cardinality URLs as
 /// `http.route` will explode metric series.
 typedef RouteResolver = String? Function(Request request);
 
@@ -365,7 +365,7 @@ Attributes _serverRequestAttributes(
 ///   * `http.request.method` — bounded set (GET, POST, PUT, …)
 ///   * `http.route` — the route TEMPLATE supplied by the application,
 ///     never the concrete path (`'/weather/:city'`, not
-///     `'/weather/Toulouse'`). When the route resolver returns null —
+///     `'/weather/Boston'`). When the route resolver returns null —
 ///     for unmatched paths or routes the application chose not to
 ///     advertise — we fall back to the literal string `'unknown'`
 ///     rather than dropping the dimension entirely; missing labels in

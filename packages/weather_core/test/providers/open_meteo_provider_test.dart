@@ -70,15 +70,15 @@ void main() {
     test('returns matching cities on a 2xx with results', () async {
       final client = MockClient((req) async {
         expect(req.url.host, 'geocoding-api.open-meteo.com');
-        expect(req.url.queryParameters['name'], 'Toulouse');
-        return http.Response(jsonEncode(_geocodeResponse('Toulouse')), 200);
+        expect(req.url.queryParameters['name'], 'Boston');
+        return http.Response(jsonEncode(_geocodeResponse('Boston')), 200);
       });
       final provider = OpenMeteoProvider(client: client);
 
-      final result = await provider.geocode('Toulouse');
+      final result = await provider.geocode('Boston');
 
       expect(result.isNotEmpty, true);
-      expect(result.best.name, 'Toulouse');
+      expect(result.best.name, 'Boston');
       expect(result.best.countryCode, 'FR');
 
       final span = spans.findSpanByName('open-meteo geocode');
@@ -193,9 +193,9 @@ void main() {
   });
 
   group('OpenMeteoProvider.getForecast', () {
-    const toulouse = City(
+    const boston = City(
       id: 1,
-      name: 'Toulouse',
+      name: 'Boston',
       latitude: 43.6,
       longitude: 1.44,
       country: 'France',
@@ -211,11 +211,11 @@ void main() {
       final provider = OpenMeteoProvider(client: client);
 
       final forecast = await provider.getForecast(
-        city: toulouse,
+        city: boston,
         forecastDays: 3,
       );
 
-      expect(forecast.city, toulouse);
+      expect(forecast.city, boston);
       expect(forecast.daily, hasLength(1));
       expect(forecast.current.weatherCode, WeatherCode.partlyCloudy);
 
@@ -235,7 +235,7 @@ void main() {
         final provider = OpenMeteoProvider(client: client);
 
         expect(
-          () => provider.getForecast(city: toulouse, forecastDays: 100),
+          () => provider.getForecast(city: boston, forecastDays: 100),
           throwsA(
             isA<WeatherProviderException>().having(
               (e) => e.kind,
@@ -255,7 +255,7 @@ void main() {
       final provider = OpenMeteoProvider(client: client);
 
       await expectLater(
-        provider.getForecast(city: toulouse, forecastDays: 3),
+        provider.getForecast(city: boston, forecastDays: 3),
         throwsA(
           isA<WeatherProviderException>().having(
             (e) => e.kind,
@@ -290,9 +290,9 @@ void main() {
       return 0;
     }
 
-    const toulouse = City(
+    const boston = City(
       id: 1,
-      name: 'Toulouse',
+      name: 'Boston',
       latitude: 43.6,
       longitude: 1.44,
       country: 'France',
@@ -302,7 +302,7 @@ void main() {
     test('records success and error outcomes with bounded labels', () async {
       // One success on geocode (200 with results)…
       final ok = MockClient((_) async {
-        return http.Response(jsonEncode(_geocodeResponse('Toulouse')), 200);
+        return http.Response(jsonEncode(_geocodeResponse('Boston')), 200);
       });
       // …and one error on getForecast (503 → upstream).
       final fail = MockClient((_) async {
@@ -323,11 +323,11 @@ void main() {
       );
       harness.metrics.clear();
 
-      await OpenMeteoProvider(client: ok).geocode('Toulouse');
+      await OpenMeteoProvider(client: ok).geocode('Boston');
       await expectLater(
         OpenMeteoProvider(
           client: fail,
-        ).getForecast(city: toulouse, forecastDays: 3),
+        ).getForecast(city: boston, forecastDays: 3),
         throwsA(isA<WeatherProviderException>()),
       );
 

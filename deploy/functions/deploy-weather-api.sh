@@ -112,4 +112,4 @@ echo
 echo "==> $WEATHER_API_FUNCTION deployed: $URL"
 echo
 echo "Try it:"
-echo "    curl -s '${URL}/weather/Toulouse?days=3' | jq ."
+echo "    curl -s '${URL}/weather/Boston?days=3' | jq ."

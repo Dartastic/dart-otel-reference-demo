@@ -9,7 +9,7 @@ the way through `weather_api`, `cache_service`, and Open-Meteo.
 
 ```sh
 # From the repo root, with weather_api running on localhost:8080:
-dart run apps/weather_cli/bin/weather.dart Toulouse
+dart run apps/weather_cli/bin/weather.dart Boston
 
 # Override the upstream:
 dart run apps/weather_cli/bin/weather.dart \

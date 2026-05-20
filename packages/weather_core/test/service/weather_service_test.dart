@@ -60,9 +60,9 @@ void main() {
     service = WeatherService(provider: provider);
   });
 
-  const toulouse = City(
+  const boston = City(
     id: 1,
-    name: 'Toulouse',
+    name: 'Boston',
     latitude: 43.6,
     longitude: 1.44,
     country: 'France',
@@ -113,15 +113,15 @@ void main() {
   group('WeatherService.getForecast', () {
     test('returns the forecast on the happy path', () async {
       provider.geocodeImpl = (q, _) =>
-          GeocodeResult(query: q, matches: const [toulouse]);
+          GeocodeResult(query: q, matches: const [boston]);
       provider.forecastImpl = _forecastFor;
 
       final forecast = await service.getForecast(
-        cityName: 'Toulouse',
+        cityName: 'Boston',
         forecastDays: 3,
       );
 
-      expect(forecast.city, toulouse);
+      expect(forecast.city, boston);
       expect(forecast.daily, hasLength(3));
 
       final span = spans.findSpanByName('WeatherService.getForecast');
@@ -158,7 +158,7 @@ void main() {
 
     test('on ambiguous geocode, emits event and uses first match', () async {
       provider.geocodeImpl = (q, _) =>
-          GeocodeResult(query: q, matches: const [toulouse, paris]);
+          GeocodeResult(query: q, matches: const [boston, paris]);
       provider.forecastImpl = _forecastFor;
 
       final forecast = await service.getForecast(
@@ -166,7 +166,7 @@ void main() {
         forecastDays: 1,
       );
 
-      expect(forecast.city, toulouse);
+      expect(forecast.city, boston);
       final span = spans.findSpanByName('WeatherService.getForecast');
       expect(span, isNotNull);
       expect(span!.spanEvents?.any((e) => e.name == 'geocode.ambiguous'), true);

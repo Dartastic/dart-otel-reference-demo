@@ -8,15 +8,15 @@ import 'package:weather_cli/weather_cli.dart';
 import 'package:weather_core/weather_core.dart';
 
 void main() {
-  // Two-day forecast for Toulouse on 9–10 May 2026. Pinned values so
+  // Two-day forecast for Boston on 9–10 May 2026. Pinned values so
   // text-format assertions are deterministic.
-  const toulouse = City(
-    id: 2972315,
-    name: 'Toulouse',
-    latitude: 43.60426,
-    longitude: 1.44367,
-    country: 'France',
-    countryCode: 'FR',
+  const boston = City(
+    id: 4930956,
+    name: 'Boston',
+    latitude: 42.35843,
+    longitude: -71.05977,
+    country: 'United States',
+    countryCode: 'US',
   );
 
   final current = CurrentWeather(
@@ -59,7 +59,7 @@ void main() {
   ];
 
   final forecast = WeatherForecast(
-    city: toulouse,
+    city: boston,
     current: current,
     daily: daily,
     fetchedAt: DateTime.utc(2026, 5, 9, 12),
@@ -68,7 +68,7 @@ void main() {
   group('renderText', () {
     test('starts with the city, country, and decimal coordinates', () {
       final lines = renderText(forecast).split('\n');
-      expect(lines.first, 'Toulouse, France (43.60°N, 1.44°E)');
+      expect(lines.first, 'Boston, United States (42.36°N, 71.06°W)');
     });
 
     test('renders southern / western coordinates with the right cardinals', () {

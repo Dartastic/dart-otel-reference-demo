@@ -16,7 +16,7 @@ import 'city.dart';
 class GeocodeResult {
   const GeocodeResult({required this.query, required this.matches});
 
-  /// The query string the user supplied (e.g. "Toulouse").
+  /// The query string the user supplied (e.g. "Boston").
   final String query;
 
   /// Matching cities in the order returned by the provider — most relevant

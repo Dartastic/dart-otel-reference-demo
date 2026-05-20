@@ -85,7 +85,7 @@ class City {
   /// Stable identifier from the geocoding provider.
   final int id;
 
-  /// Display name (e.g. "Toulouse").
+  /// Display name (e.g. "Boston").
   final String name;
 
   final double latitude;

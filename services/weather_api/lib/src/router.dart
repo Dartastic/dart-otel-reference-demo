@@ -51,7 +51,7 @@ Handler buildWeatherApiPipeline({required WeatherService service}) {
           tracerName: 'weather_api',
           // Span name uses the route template, not the concrete path. The
           // server span ends up named "GET /weather/:city" rather than
-          // "GET /weather/Toulouse" — bounded cardinality, useful in
+          // "GET /weather/Boston" — bounded cardinality, useful in
           // dashboards.
           routeResolver: _routeTemplateFor,
         ),

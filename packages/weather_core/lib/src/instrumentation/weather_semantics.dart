@@ -53,7 +53,7 @@ enum WeatherSemantics implements OTelSemantic {
   /// Bounded (`WeatherProviderErrorKind`). **Safe on metrics.**
   errorKind('weather.error.kind'),
 
-  /// Free-text geocode query supplied by the caller — e.g. `Toulouse`.
+  /// Free-text geocode query supplied by the caller — e.g. `Boston`.
   /// **Span-only — high-cardinality.**
   geocodeQuery('weather.geocode.query'),
 
@@ -74,7 +74,7 @@ enum WeatherSemantics implements OTelSemantic {
   /// **Span-only — high-cardinality.**
   cityId('weather.city.id'),
 
-  /// City display name — e.g. `Toulouse`.
+  /// City display name — e.g. `Boston`.
   /// **Span-only — high-cardinality.**
   cityName('weather.city.name'),
 

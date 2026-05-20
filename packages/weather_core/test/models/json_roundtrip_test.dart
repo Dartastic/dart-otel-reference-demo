@@ -7,9 +7,9 @@ import 'package:test/test.dart';
 import 'package:weather_core/weather_core.dart';
 
 void main() {
-  const toulouse = City(
+  const boston = City(
     id: 2972315,
-    name: 'Toulouse',
+    name: 'Boston',
     latitude: 43.60426,
     longitude: 1.44367,
     country: 'France',
@@ -46,7 +46,7 @@ void main() {
   );
 
   final forecast = WeatherForecast(
-    city: toulouse,
+    city: boston,
     current: current,
     daily: <DailyForecast>[dailyDay],
     fetchedAt: DateTime.utc(2026, 5, 9, 12),
@@ -54,9 +54,9 @@ void main() {
 
   group('City.toJson / fromJson', () {
     test('round-trips a fully-populated city', () {
-      final json = jsonEncode(toulouse);
+      final json = jsonEncode(boston);
       final decoded = City.fromJson(jsonDecode(json) as Map<String, dynamic>);
-      expect(decoded, toulouse);
+      expect(decoded, boston);
     });
 
     test('round-trips a city with all optional fields absent', () {
@@ -133,7 +133,7 @@ void main() {
 
     test('preserves the daily series order across the round-trip', () {
       final multiDay = WeatherForecast(
-        city: toulouse,
+        city: boston,
         current: current,
         daily: <DailyForecast>[
           dailyDay,
@@ -164,7 +164,7 @@ void main() {
     test('throws FormatException on missing nested object', () {
       expect(
         () => WeatherForecast.fromJson(<String, dynamic>{
-          'city': toulouse.toJson(),
+          'city': boston.toJson(),
           'current': current.toJson(),
           // missing 'daily' and 'fetchedAt'
         }),

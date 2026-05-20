@@ -16,10 +16,10 @@ String renderJson(WeatherForecast forecast) =>
 /// block. The format is stable across versions of this CLI — tests
 /// pin specific lines, so changes here should be deliberate.
 ///
-/// Example output (3-day forecast for Toulouse):
+/// Example output (3-day forecast for Boston):
 ///
 /// ```
-/// Toulouse, France (43.60°N, 1.44°E)
+/// Boston, France (43.60°N, 1.44°E)
 /// Now:  18.5°C feels like 17.2°C, partly cloudy, wind 12 km/h
 ///
 ///   Sat May 09  10.5–20.0°C  partly cloudy   precip 0% ( 0.0 mm)  uv 6.0

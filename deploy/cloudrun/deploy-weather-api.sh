@@ -124,4 +124,4 @@ echo
 echo "==> weather-api deployed: $URL"
 echo
 echo "Try it:"
-echo "    curl -s '${URL}/weather/Toulouse?days=3' | jq ."
+echo "    curl -s '${URL}/weather/Boston?days=3' | jq ."

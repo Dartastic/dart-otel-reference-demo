@@ -35,7 +35,7 @@ network.
 
 ```sh
 # A real forecast request:
-curl -s 'http://localhost:8080/weather/Toulouse?days=3' | jq .
+curl -s 'http://localhost:8080/weather/Boston?days=3' | jq .
 
 # Open Grafana:
 open http://localhost:3000           # macOS
@@ -74,7 +74,7 @@ into it from your host:
 ```sh
 # Point the CLI at the containerized weather-api:
 WEATHER_API_URL=http://localhost:8080 \
-  dart run apps/weather_cli/bin/weather.dart Toulouse
+  dart run apps/weather_cli/bin/weather.dart Boston
 
 # Send the CLI's own spans to the same LGTM backend so the trace
 # tree starts at `cli.forecast` (root span) and includes the

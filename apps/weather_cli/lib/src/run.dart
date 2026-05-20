@@ -311,7 +311,7 @@ String _usage(ArgParser parser) {
       '${parser.usage}\n'
       '\n'
       'Examples:\n'
-      '  weather_cli Toulouse\n'
+      '  weather_cli Boston\n'
       '  weather_cli --days 7 "New York"\n'
       '  weather_cli --json --quiet Tokyo | jq .city.name';
 }
