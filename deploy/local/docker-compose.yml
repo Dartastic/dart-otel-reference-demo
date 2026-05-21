@@ -1,6 +1,8 @@
 # deploy/local/docker-compose.yml
 #
-# Local development stack: weather_api + cache_service + Grafana LGTM.
+# Local development stack: nginx edge + weather_api + cache_service +
+# Grafana LGTM.  nginx (ngx_otel_module) emits its own traces, so the
+# waterfall starts at the front door.
 #
 # What "LGTM" means: Loki (logs), Grafana (UI), Tempo (traces), Mimir
 # (metrics). The grafana/otel-lgtm image bundles all four behind a
@@ -29,9 +31,9 @@
 #
 #     curl -s 'http://localhost:8080/weather/Boston?days=3' | jq .
 #
-# Open Grafana → Explore → Tempo, search for service.name="weather-api"
+# Open Grafana → Explore → Tempo, search for service.name="nginx-edge"
 # and find the trace your curl produced — it should fan out across
-# weather-api → cache-service → open-meteo.
+# nginx-edge → weather-api → cache-service → open-meteo.
 #
 # Tear it all down:
 #
@@ -145,7 +147,8 @@ services:
     image: dart-otel-demo/weather-api:dev
     container_name: dart-otel-demo-weather-api
     ports:
-      - "8080:8080"
+      # No host :8080 here anymore — the traced nginx edge owns the
+      # public port and proxies to weather-api on the compose network.
       # Admin port for the flush endpoint, bound to localhost only.
       # Symmetric with cache-service.
       - "127.0.0.1:8081:8081"
@@ -175,6 +178,27 @@ services:
         # tolerable — failed exports retry and failed requests come
         # from the user, not at startup.
         condition: service_started
+
+  # ── Traced edge (nginx + ngx_otel_module) ──
+  # The public front door.  nginx emits its OWN OTel spans and
+  # propagates W3C trace context to weather-api, so a single trace
+  # starts here and fans out: nginx-edge → weather-api → cache-service
+  # → open-meteo.  Same OTLP backend (lgtm:4317) the Dart services use.
+  nginx:
+    build:
+      context: ../..
+      dockerfile: deploy/local/nginx/Dockerfile
+    image: dart-otel-demo/nginx-edge:dev
+    container_name: dart-otel-demo-nginx
+    ports:
+      # nginx now owns the public 8080 — `curl localhost:8080/...`
+      # still works; it just enters through the traced edge first.
+      - "8080:8080"
+    depends_on:
+      weather-api:
+        condition: service_started
+      lgtm:
+        condition: service_healthy
 
 # ───────────────────────────────────────────────────────────────────
 # Volumes
