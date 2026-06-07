@@ -1,35 +1,49 @@
 # Dart OTel Demo
 
-A reference implementation of well-instrumented Dart server applications and
-CLIs using the [Dartastic OpenTelemetry SDK][sdk]. Built as the working example
-for the `blog.dart.dev` post on observability for Dart and Flutter.
+A reference implementation for use of the [Dartastic OpenTelemetry SDK][sdk] demonstrating well-instrumented:
+- Dart server applications,
+- Dart CLIs
+- Flutter apps
+- Dart CloudRun functions
+- Dart Cloud Functions (Firebase Functions in Dart)
 
-> **Companion blog post:** _coming soon — link to be added when published on `blog.dart.dev`._
+[Dartastic.io](https://dartastic.io) offers an extended commercial version of the demo with pro OTel features 
+including:
+- Improved performance via a Native Dartastic Opentelemetry implementation
+- Automatic personal information scrubbing
+- Native error capture
+- Janky widget identification
+- Conversion of binary production errors into human readable source code line via Dartastic Symbolizer
+- Dartastic Hosted - o11y stacks specialized for Flutter and Dart 
 
-**Status.** Shipped and runnable end-to-end. `tool/stack.sh up`
-brings up two services + Grafana LGTM + bundled dashboards in one
-command. The [Cloud Run path](./deploy/cloudrun/README.md) and
-[Cloud Functions Gen 2 path](./deploy/functions/README.md) both
-ship deploy scripts for `weather-api` and `cache-service` with
-production-grade IAM-locked service-to-service auth, and recommend
-Google Cloud Operations (Cloud Trace + Cloud Logging + Cloud
-Monitoring) as the telemetry backend. For the design rationale
-and the choices behind these patterns, see [DESIGN.md](./DESIGN.md);
-this README is the practical documentation of what's shipped.
+## How It Works
 
-## What this demonstrates
+The demos can run against on OTel backend.  It comes with local docker observability container running Grafana `lgtm` 
+- Loki, Grafana, Tempo, Mimir - that accepts OTel on the standard default ports, 
+- started via `tool/stack.sh up`.  
 
-![weather-trace.png](weather-trace.png)
+Examples also run as Cloud Functions and in CloudRun. See the 
+[Cloud Run README](./deploy/cloudrun/README.md) and
+[Cloud Functions Gen 2 README](./deploy/functions/README.md), respectively.  Both ship deployment scripts for 
+`weather-api` and `cache-service` with production-grade IAM-locked service-to-service auth, and recommend
+Google Cloud Operations (Cloud Trace + Cloud Logging + Cloud Monitoring) as the telemetry backend. 
 
-- Distributed tracing across a CLI client, two Dart HTTP services, and an
-  external API — one trace ID flowing through every hop, four levels deep.
-- The standard OTel HTTP server semantic conventions: a
-  `http.server.request.duration` histogram with bounded labels, plus
-  full HTTP semconv attributes on every server span.
-- Production-grade OTel patterns: `BatchSpanProcessor` everywhere,
-  `SIGTERM`-driven graceful shutdown, route-template span names for
-  bounded cardinality, propagated W3C Trace Context and Baggage,
-  parent-based sampling.
+For the design rationale and the choices behind these patterns, see [DESIGN.md](./DESIGN.md);
+this README is the practical documentation of the demos overall.
+
+## Distributed Tracing CLI Demo
+
+Distributed tracing is the most powerful tool of OTel. A single traceId spans from 
+a client application (Flutter, CLI, web page) to the backend, through the services
+that handle the request and back to the client.  Each step adding information about
+how the request was handled.  
+
+The system shows a contrived weather service intended to mimic a simple but real service
+with CLI and Flutter clients.  The API service calls two internal Dart services and an external service, making a trace that's 4 hops deep. The client sends the request,
+`WeatherService.getForecast` checks a `cache-service` and if the geocode is not in the cache,
+it calls a `weather-api` that fetches the weather for a location through an external service.
+
+The demo features production-grade best practices:
 - A `weather_client` SDK that implements `WeatherProvider` over HTTP —
   the same package is consumed by both `weather_api` (calling
   `cache_service`) and `weather_cli` (calling `weather_api`),
@@ -37,41 +51,45 @@ this README is the practical documentation of what's shipped.
   caller-side library.
 - A **Flutter web/wasm client** ([`apps/weather_flutter`](./apps/weather_flutter/README.md))
   that originates the trace from a user tap. Dartastic SDK
-  `1.1.0-beta.3` + API `1.0.0-beta.5` run unchanged in the browser.
-  Wire format swaps on `kDebugMode`: **debug builds use OTLP/HTTP-
-  JSON** (`OtlpHttpProtocol.httpJson`, added in SDK beta.3) on
-  every signal so OTLP payloads are readable JSON in DevTools;
-  **release builds use protobuf** so end users don't see telemetry
-  contents in their browser. Span timing is
-  sub-millisecond via the API's `WebTimeProvider` (auto-selected at
+  run unchanged in the browser.
+-  Wire format swaps on `kDebugMode`: **debug builds use OTLP/HTTP-
+   JSON** on every signal so OTLP payloads are readable JSON in DevTools;
+   **release builds use protobuf** so end users don't see telemetry
+   contents in their browser.
+- Propagated W3C Trace Context and Baggage: The same `InstrumentedHttpClient` used server-side
+  propagates W3C trace context across the HTTP boundary so the
+  Flutter span is the root of a five-level trace tree.
+- The standard OTel HTTP server semantic conventions: a
+  `http.server.request.duration` histogram with bounded labels, plus
+  full HTTP semconv attributes on every server span.  API Semantic enums
+  are used, letting the compiler ensure key strings are consistent 
+  ('host.name' not 'hostname' via `dartastic_opentelemetry_api`'s `Host.hostName`).
+- Usage of `BatchSpanProcessor` for efficiency.
+- `SIGTERM`-driven graceful shutdown
+- Parent-based sampling.
+- Route-template span names for bounded cardinality
+- Span timing is sub-millisecond via the API's `WebTimeProvider` (auto-selected at
   compile time on web targets — routes through `performance.now() +
   timeOrigin` for ~5–100µs precision instead of `Date.now()`'s
-  millisecond floor). The same `InstrumentedHttpClient` used server-side
-  propagates W3C trace context across the HTTP boundary so the
-  Flutter span is the root of a five-level trace tree. A
-  polished Flutter integration with navigator-observer spans,
-  route templates, error-boundary widgets, and frame metrics is
-  on the way as [Flutterrific OpenTelemetry Pro][flutterrific] —
-  the Flutter app here uses the SDK directly so the reader can
-  see exactly which line does what.
-- A **Genkit AI demo** ([`apps/dinger`](./apps/dinger/README.md)) —
-  "Dinger", a baseball-highlights app where Google's Genkit (with
-  Workiva's OpenTelemetry swapped out for **Dartastic**) pulls live
-  MLB stats and writes recaps. It showcases Genkit **tool-calling +
-  structured output**, and because Genkit runs on Dartastic, the flow,
-  the model call, and the tool's live MLB fetch all appear as one trace
-  in the same LGTM/Grafana stack. Self-contained (not a workspace
-  member) so the weather demo stays dependency-clean; depends on a
-  local `genkit-dart` clone via path until Genkit ships the Dartastic
-  dep on pub.dev.
+  millisecond floor). 
 - A swarm runner (`load/run_swarm.sh`) that spawns N parallel CLI
   invocations and force-flushes the SDK before exit, plus a bundled
   Grafana dashboard whose latency heatmap shows the bimodal pattern
   (cache hits vs Open-Meteo round trips) that pops out at any
   meaningful traffic volume.
 - A testing strategy that uses the **real** OTel SDK against an
-  in-memory exporter — no mocking the SDK. See
-  [Testing strategy](#testing-strategy).
+    in-memory exporter — no mocking the SDK. See
+    [Testing strategy](#testing-strategy).
+
+
+- A **Genkit AI demo** ([`apps/dinger`](./apps/dinger/README.md)) —
+  "Dinger", a baseball-highlights app where Google's Genkit (with
+  Workiva's OpenTelemetry swapped out for **Dartastic**) pulls live
+  MLB stats and writes recaps. It showcases Genkit **tool-calling +
+  structured output**, and because Genkit runs on Dartastic, the flow,
+  the model call, and the tool's live MLB fetch all appear as one trace
+  in the same LGTM/Grafana stack. Depends on a local `genkit-dart` clone 
+  via path until Genkit ships the Dartastic dep on pub.dev.
 
 ## Quick start
 
@@ -90,9 +108,8 @@ load/run_swarm.sh --total 500 --parallel 25
 open http://localhost:3000          # admin / admin
 ```
 
-Full walkthrough — what's running, what to look for in the trace tree,
-how to drive it from the CLI, how to tear it down — in
-[deploy/local/README.md](./deploy/local/README.md).
+Full walkthrough — what to look for in the trace tree, how to drive it from the CLI, how to tear it down 
+is described in [deploy/local/README.md](./deploy/local/README.md).
 
 ## System architecture
 
@@ -155,10 +172,10 @@ deploy/
   functions/           Cloud Functions Gen 2 deploy scripts + env YAML; same shape as cloudrun
 ```
 
-## What's shipped
+## What's Contained in this Reference
 
 The comprehensive list — every pattern, package, dashboard, and deployment
-target you can read or copy from this repo today.
+target you can read or copy from this repo.
 
 ### Distributed tracing end-to-end
 
@@ -192,7 +209,7 @@ target you can read or copy from this repo today.
 
 ### Production-grade SDK wiring
 
-- **`BatchSpanProcessor` everywhere in production paths.**
+- **`BatchSpanProcessor`** in production paths.
   `SimpleSpanProcessor` only in tests. The bootstrap reads SDK
   defaults; explicit overrides are an `OTEL_*` env-var concern.
 - **`ParentBasedSampler(TraceIdRatioSampler(...))`** wired in the
@@ -201,8 +218,9 @@ target you can read or copy from this repo today.
   `weather_otel.attachToProcessLifecycle()` installs handlers that
   forceFlush and shutdown the SDK before exit. Documented for the
   Cloud Run 10-second grace window.
-- **`recordException` + `setStatus(Error)`** on every caught
-  exception in instrumented code. ~13 sites across the codebase.
+- **try/catch/finally** using `recordException` + `setStatus(Error)`
+  on every caught exception and showing span status only needs to
+  be set on errors.
 - **Zone-based uncaught-error capture.** Every Dart entry point
   (`weather_cli`, `weather_api`, `cache_service`) wraps its `main`
   in `runWithOtelErrorHandlers` (from `weather_otel`), which
@@ -226,9 +244,8 @@ target you can read or copy from this repo today.
   middleware with a deliberately low-cardinality label set
   (method, route TEMPLATE, status_code, scheme), pinned by a test
   that catches accidental high-cardinality additions. The metric
-  name, instrument kind, and unit come from API beta.6's spec-
-  derived `HttpMetric` enum so typos in any of the three are
-  compile errors:
+  name, instrument kind, and unit come from spec-derived `HttpMetric` 
+  enum so typos in any of the three are compile errors:
 
   ```dart
   const httpServerDuration = HttpMetric.serverRequestDuration;

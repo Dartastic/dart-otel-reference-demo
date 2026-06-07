@@ -19,8 +19,8 @@ dependencies:
   # package directly. The SDK still owns OTel.initialize(), spans,
   # meters, processors, and exporters — consumers do that at app
   # startup.
-  dartastic_opentelemetry: ^1.1.0-beta.4
-  dartastic_opentelemetry_api: ^1.0.0-beta.6
+  dartastic_opentelemetry: ^1.1.0-beta.6
+  dartastic_opentelemetry_api: ^1.0.0-beta.7
 
   # HTTP client we wrap, and shelf for the server-side middleware.
   http: ^1.5.0
