@@ -178,7 +178,10 @@ class OpenMeteoProvider implements WeatherProvider {
     var outcome = 'success';
     String? errorKind;
     try {
-      return await OTel.tracer().withSpanAsync(span, () async {
+      // Activate the span via the Zone primitive (what withSpanAsync
+      // wraps) so we own the exception path and set the status from the
+      // domain exception's clean `.message` rather than its toString().
+      return await Context.current.withSpan(span).run(() async {
         final body = await _get(uri, span: span, operation: 'geocode');
         final decoded = _decodeJson(body);
 
@@ -229,17 +232,19 @@ class OpenMeteoProvider implements WeatherProvider {
           matches: List<City>.unmodifiable(cities),
         );
       });
-    } on WeatherProviderException catch (e) {
-      // withSpanAsync already recorded the exception and set the span
-      // status; here we only annotate the failure metrics.
+    } on WeatherProviderException catch (e, st) {
       outcome = 'error';
       errorKind = e.kind.name;
+      span
+        ..recordException(e, stackTrace: st)
+        ..setStatus(.Error, e.message);
       rethrow;
     } catch (e, st) {
-      // withSpanAsync recorded the original error on the span; translate
-      // it into the provider's exception type for callers.
       outcome = 'error';
       errorKind = WeatherProviderErrorKind.unknown.name;
+      span
+        ..recordException(e, stackTrace: st)
+        ..setStatus(.Error, e.toString());
       throw WeatherProviderException(
         kind: WeatherProviderErrorKind.unknown,
         providerName: name,
@@ -305,7 +310,10 @@ class OpenMeteoProvider implements WeatherProvider {
     var outcome = 'success';
     String? errorKind;
     try {
-      return await OTel.tracer().withSpanAsync(span, () async {
+      // Activate the span via the Zone primitive (what withSpanAsync
+      // wraps) so we own the exception path and set the status from the
+      // domain exception's clean `.message` rather than its toString().
+      return await Context.current.withSpan(span).run(() async {
         final body = await _get(uri, span: span, operation: 'forecast');
         final decoded = _decodeJson(body);
         final fetchedAt = DateTime.now().toUtc();
@@ -337,17 +345,19 @@ class OpenMeteoProvider implements WeatherProvider {
           );
         }
       });
-    } on WeatherProviderException catch (e) {
-      // withSpanAsync already recorded the exception and set the span
-      // status; here we only annotate the failure metrics.
+    } on WeatherProviderException catch (e, st) {
       outcome = 'error';
       errorKind = e.kind.name;
+      span
+        ..recordException(e, stackTrace: st)
+        ..setStatus(.Error, e.message);
       rethrow;
     } catch (e, st) {
-      // withSpanAsync recorded the original error on the span; translate
-      // it into the provider's exception type for callers.
       outcome = 'error';
       errorKind = WeatherProviderErrorKind.unknown.name;
+      span
+        ..recordException(e, stackTrace: st)
+        ..setStatus(.Error, e.toString());
       throw WeatherProviderException(
         kind: WeatherProviderErrorKind.unknown,
         providerName: name,

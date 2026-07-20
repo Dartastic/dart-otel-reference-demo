@@ -65,6 +65,14 @@ class WeatherService {
     String? errorKind;
     String? countryCode;
 
+    // This orchestration span uses `withSpanAsync` — the convenience
+    // wrapper — deliberately. Contrast with OpenMeteoProvider, which
+    // activates the span manually (`Context.current.withSpan(span).run`)
+    // to set the status from a domain exception's clean `.message`. Here
+    // there is no bespoke message to preserve: on failure the provider's
+    // WeatherProviderException.toString() (kind + provider + message) is
+    // exactly the status we want, so we let withSpanAsync record it and
+    // set Error automatically, and the catches only annotate metrics.
     try {
       return await tracer.withSpanAsync(span, () async {
         final geocoded = await _provider.geocode(cityName);
@@ -120,13 +128,13 @@ class WeatherService {
         return forecast;
       });
     } on WeatherProviderException catch (e) {
-      // withSpanAsync already recorded the exception and set the span
-      // status; here we only annotate the failure metrics.
+      // withSpanAsync recorded the exception and set the span status from
+      // its toString(); we only annotate the failure metrics.
       outcome = 'error';
       errorKind = e.kind.name;
       rethrow;
     } catch (e) {
-      // Span exception handling is owned by withSpanAsync.
+      // Same — span exception handling is owned by withSpanAsync.
       outcome = 'error';
       errorKind = WeatherProviderErrorKind.unknown.name;
       rethrow;
