@@ -15,7 +15,7 @@
 #   tool/run.sh --list          # lists discovered services and exits
 #
 # Environment passthrough:
-#   PORT, ADMIN_PORT, OTEL_DEMO_MODE, OTEL_*  — forwarded to the service
+#   PORT, ADMIN_PORT, WEATHER_DEMO_MODE, OTEL_*  — forwarded to the service
 #                                                exactly as set in the
 #                                                calling shell. See each
 #                                                service's README for
@@ -105,7 +105,7 @@ echo "==> dart pub get (workspace)"
 dart pub get >/dev/null
 
 echo "==> dart run $entry"
-echo "    (PORT=${PORT:-8080}${ADMIN_PORT:+ ADMIN_PORT=$ADMIN_PORT}${OTEL_DEMO_MODE:+ OTEL_DEMO_MODE=$OTEL_DEMO_MODE})"
+echo "    (PORT=${PORT:-8080}${ADMIN_PORT:+ ADMIN_PORT=$ADMIN_PORT}${WEATHER_DEMO_MODE:+ WEATHER_DEMO_MODE=$WEATHER_DEMO_MODE})"
 echo "    Ctrl-C to stop"
 echo
 

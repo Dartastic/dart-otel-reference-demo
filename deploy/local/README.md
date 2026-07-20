@@ -101,7 +101,7 @@ curl -fsS -X POST http://localhost:8091/flush  # cache-service
 Both endpoints call `forceFlush()` on the SDK, blocking until
 buffered spans are exported. The endpoint is bound to localhost only
 on the host — the compose stack is what enables the admin port; in
-production the same binary leaves it closed unless `OTEL_DEMO_MODE=true`.
+production the same binary leaves it closed unless `WEATHER_DEMO_MODE=true`.
 
 The swarm script (see [`load/`](../../load/)) calls these endpoints
 automatically at the end of every batch.

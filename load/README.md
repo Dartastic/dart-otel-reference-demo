@@ -66,7 +66,7 @@ dashboard.
 
 The admin endpoints are exposed by the local stack's
 `docker-compose.yml`. They're loopback-bound on the host (`127.0.0.1`)
-and only enabled when `OTEL_DEMO_MODE=true`. In production
+and only enabled when `WEATHER_DEMO_MODE=true`. In production
 deployments the same binary leaves the port closed.
 
 To skip the flush step, pass `--no-flush`. To force a flush manually

@@ -30,7 +30,7 @@ void main() {
       // own code paths — production callers omit `spanProcessor:` so
       // OTel.initialize installs the default BatchSpanProcessor.
       spanProcessor: SimpleSpanProcessor(exporter),
-      environment: <String, String>{'OTEL_DEMO_MODE': 'true'},
+      environment: <String, String>{'WEATHER_DEMO_MODE': 'true'},
     );
   });
 
@@ -44,7 +44,7 @@ void main() {
       expect(handle.serviceInstanceId, matches(_uuidV4Pattern));
     });
 
-    test('reflects OTEL_DEMO_MODE=true on the handle', () {
+    test('reflects WEATHER_DEMO_MODE=true on the handle', () {
       expect(handle.demoModeEnabled, true);
     });
 

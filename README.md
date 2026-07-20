@@ -382,7 +382,7 @@ target you can read or copy from this repo.
 - **Swarm script** (`load/run_swarm.sh`): N parallel CLI
   invocations, post-run flush via the demo admin endpoints
   (`POST /flush` on loopback-bound 8081 / 8091, only when
-  `OTEL_DEMO_MODE=true`).
+  `WEATHER_DEMO_MODE=true`).
 - **Bundled Grafana dashboard** in `dashboards/grafana/`,
   auto-loaded into the local stack's Grafana container.
 
@@ -554,7 +554,7 @@ tool/coverage.sh --html
 ```
 
 `tool/run.sh` forwards the standard `OTEL_*` environment variables and
-each service's own config (`PORT`, `ADMIN_PORT`, `OTEL_DEMO_MODE`) from
+each service's own config (`PORT`, `ADMIN_PORT`, `WEATHER_DEMO_MODE`) from
 the calling shell — see each service's README for the accepted set.
 For the canonical local-stack invocation:
 
@@ -690,7 +690,7 @@ These are demo-time conveniences. They never run in a production deployment.
 
 - **Admin `POST /flush` endpoint** on a loopback-bound port (8081 for
   weather_api, 8091 for cache_service), exposed by
-  `weather_otel.demoAdminPipeline()` only when `OTEL_DEMO_MODE=true`.
+  `weather_otel.demoAdminPipeline()` only when `WEATHER_DEMO_MODE=true`.
   The bootstrap helper short-circuits when the flag is unset —
   production binaries do not exercise the code path. Driven by `curl`
   from the swarm script, or directly by the user.

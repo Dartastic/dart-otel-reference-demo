@@ -57,12 +57,14 @@ const double defaultSamplingRatio = 1.0;
 ///     without baggage interference.
 ///
 /// Endpoint, protocol, headers, and additional resource attributes
-/// resolve from the standard `OTEL_*` environment variables — no custom
-/// env vars are introduced. Switch backends (stdout, Grafana LGTM,
-/// Cloud Operations, Dartastic Cloud) via `OTEL_EXPORTER_OTLP_ENDPOINT`
-/// and `OTEL_EXPORTER_OTLP_PROTOCOL` alone.
+/// resolve from the standard `OTEL_*` environment variables. Switch
+/// backends (stdout, Grafana LGTM, Cloud Operations, Dartastic Cloud)
+/// via `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_PROTOCOL`
+/// alone. Sampling honors `OTEL_TRACES_SAMPLER`
+/// (`always_on`, `always_off`, `traceidratio`, and their `parentbased_`
+/// variants) with `OTEL_TRACES_SAMPLER_ARG` supplying the ratio.
 ///
-/// Demo affordance: when the environment has `OTEL_DEMO_MODE=true`, the
+/// Demo affordance: when the environment has `WEATHER_DEMO_MODE=true`, the
 /// returned handle's `demoAdminPipeline()` returns a shelf handler that
 /// exposes `POST /flush` and `GET /healthz`. Mount it on a private
 /// admin port; never on the public-facing service port. When the env is
@@ -84,13 +86,13 @@ Future<WeatherOtelHandle> initializeOtel({
 
   // Read configuration from the supplied environment map first, then
   // fall back to the real process environment. The map argument exists
-  // for tests that want to drive `OTEL_DEMO_MODE` and the sampler arg
-  // without touching the real environment.
+  // for tests that want to drive `WEATHER_DEMO_MODE` and the sampler
+  // vars without touching the real environment.
   String? envLookup(String key) =>
       environment[key] ?? Platform.environment[key];
 
   final demoModeEnabled =
-      (envLookup('OTEL_DEMO_MODE')?.toLowerCase() ?? '') == 'true';
+      (envLookup('WEATHER_DEMO_MODE')?.toLowerCase() ?? '') == 'true';
 
   // Resolve the sampling ratio. Explicit arg > env > default.
   final resolvedSamplingRatio =
@@ -121,9 +123,16 @@ Future<WeatherOtelHandle> initializeOtel({
     ...?extraResourceAttributes,
   };
 
-  // Effective sampler. Caller's > built-from-ratio.
+  // Effective sampler: explicit caller arg > OTEL_TRACES_SAMPLER >
+  // ratio-built default. The SDK does not consume OTEL_TRACES_SAMPLER,
+  // so the reference demo models it here.
   final effectiveSampler =
-      sampler ?? ParentBasedSampler(TraceIdRatioSampler(resolvedSamplingRatio));
+      sampler ??
+      _samplerFromEnv(
+        envLookup('OTEL_TRACES_SAMPLER'),
+        resolvedSamplingRatio,
+        logger,
+      );
 
   await OTel.initialize(
     serviceName: serviceName,
@@ -174,6 +183,31 @@ Future<WeatherOtelHandle> initializeOtel({
     demoModeEnabled: demoModeEnabled,
     logger: logger,
   );
+}
+
+Sampler _samplerFromEnv(String? name, double ratio, Logger logger) {
+  switch (name?.trim().toLowerCase()) {
+    case null:
+    case '':
+    case 'parentbased_traceidratio':
+      return ParentBasedSampler(TraceIdRatioSampler(ratio));
+    case 'traceidratio':
+      return TraceIdRatioSampler(ratio);
+    case 'always_on':
+      return const AlwaysOnSampler();
+    case 'always_off':
+      return const AlwaysOffSampler();
+    case 'parentbased_always_on':
+      return ParentBasedSampler(const AlwaysOnSampler());
+    case 'parentbased_always_off':
+      return ParentBasedSampler(const AlwaysOffSampler());
+    default:
+      logger.warning(
+        'Unrecognized OTEL_TRACES_SAMPLER="$name"; '
+        'falling back to parentbased_traceidratio.',
+      );
+      return ParentBasedSampler(TraceIdRatioSampler(ratio));
+  }
 }
 
 double? _parseDouble(String? raw) {

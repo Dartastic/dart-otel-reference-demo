@@ -58,9 +58,9 @@ The binary at `bin/server.dart` wires four library packages:
 | Environment variable    | Default                  | Description                                         |
 | ----------------------- | ------------------------ | --------------------------------------------------- |
 | `PORT`                  | `8080`                   | Public service port.                                |
-| `ADMIN_PORT`            | `8081`                   | Admin port (only bound when `OTEL_DEMO_MODE=true`). |
+| `ADMIN_PORT`            | `8081`                   | Admin port (only bound when `WEATHER_DEMO_MODE=true`). |
 | `WEATHER_UPSTREAM_URL`  | `http://localhost:8090`  | Base URL of the v1 upstream service (cache_service).|
-| `OTEL_DEMO_MODE`        | unset                    | When `true`, exposes `POST /flush` on `ADMIN_PORT`. |
+| `WEATHER_DEMO_MODE`        | unset                    | When `true`, exposes `POST /flush` on `ADMIN_PORT`. |
 | `OTEL_*`                |                          | Standard OTel env vars — see `weather_otel`.        |
 
 ## Running

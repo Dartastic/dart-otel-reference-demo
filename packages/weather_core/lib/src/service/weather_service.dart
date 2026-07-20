@@ -55,7 +55,7 @@ class WeatherService {
     required int forecastDays,
   }) async {
     final stopwatch = Stopwatch()..start();
-    final tracer = OTel.tracer();
+    final tracer = OTel.tracerProvider().getTracer('weather_core');
 
     final span = tracer.startSpan(
       'WeatherService.getForecast',
@@ -72,60 +72,67 @@ class WeatherService {
     String? countryCode;
 
     try {
-      return await tracer.withSpanAsync(span, () async {
-        final geocoded = await _provider.geocode(cityName);
-        if (geocoded.isEmpty) {
-          span.addEvent(
-            OTel.spanEventNow(
-              'geocode.no_matches',
-              OTel.attributesFromMap(<String, Object>{
-                WeatherSemantics.geocodeQuery.key: cityName,
-              }),
-            ),
+      return await tracer.withSpanAsync(
+        span,
+        exceptionOptions: const SpanExceptionOptions(
+          recordException: false,
+          setStatusOnException: false,
+        ),
+        () async {
+          final geocoded = await _provider.geocode(cityName);
+          if (geocoded.isEmpty) {
+            span.addEvent(
+              OTel.spanEventNow(
+                'geocode.no_matches',
+                OTel.attributesFromMap(<String, Object>{
+                  WeatherSemantics.geocodeQuery.key: cityName,
+                }),
+              ),
+            );
+            throw WeatherProviderException(
+              kind: WeatherProviderErrorKind.notFound,
+              providerName: _provider.name,
+              message: 'No city matched query "$cityName"',
+            );
+          }
+
+          if (geocoded.isAmbiguous) {
+            span.addEvent(
+              OTel.spanEventNow(
+                'geocode.ambiguous',
+                OTel.attributesFromMap(<String, Object>{
+                  WeatherSemantics.geocodeMatchCount.key:
+                      geocoded.matches.length,
+                }),
+              ),
+            );
+            _log.fine(
+              'Ambiguous geocode for "$cityName" '
+              '(${geocoded.matches.length} matches); using first',
+            );
+          }
+
+          final best = geocoded.best;
+          countryCode = best.countryCode;
+
+          // Country code is bounded (~250 values) — safe on metrics. City id
+          // and city name are high-cardinality and remain span-only.
+          span.addAttributes(
+            OTel.attributesFromMap(<String, Object>{
+              WeatherSemantics.cityId.key: best.id,
+              WeatherSemantics.cityName.key: best.name,
+              WeatherSemantics.cityCountryCode.key: best.countryCode,
+            }),
           );
-          throw WeatherProviderException(
-            kind: WeatherProviderErrorKind.notFound,
-            providerName: _provider.name,
-            message: 'No city matched query "$cityName"',
+
+          final forecast = await _provider.getForecast(
+            city: best,
+            forecastDays: forecastDays,
           );
-        }
 
-        if (geocoded.isAmbiguous) {
-          span.addEvent(
-            OTel.spanEventNow(
-              'geocode.ambiguous',
-              OTel.attributesFromMap(<String, Object>{
-                WeatherSemantics.geocodeMatchCount.key: geocoded.matches.length,
-              }),
-            ),
-          );
-          _log.fine(
-            'Ambiguous geocode for "$cityName" '
-            '(${geocoded.matches.length} matches); using first',
-          );
-        }
-
-        final best = geocoded.best;
-        countryCode = best.countryCode;
-
-        // Country code is bounded (~250 values) — safe on metrics. City id
-        // and city name are high-cardinality and remain span-only.
-        span.addAttributes(
-          OTel.attributesFromMap(<String, Object>{
-            WeatherSemantics.cityId.key: best.id,
-            WeatherSemantics.cityName.key: best.name,
-            WeatherSemantics.cityCountryCode.key: best.countryCode,
-          }),
-        );
-
-        final forecast = await _provider.getForecast(
-          city: best,
-          forecastDays: forecastDays,
-        );
-
-        span.setStatus(.Ok);
-        return forecast;
-      });
+          return forecast;
+        },
+      );
     } on WeatherProviderException catch (e, st) {
       outcome = 'error';
       errorKind = e.kind.name;
@@ -162,7 +169,7 @@ class WeatherService {
       });
       _instruments.requests.add(1, metricAttributes);
       _instruments.duration.record(
-        stopwatch.elapsedMilliseconds,
+        stopwatch.elapsedMicroseconds / Duration.microsecondsPerSecond,
         metricAttributes,
       );
     }
@@ -192,29 +199,31 @@ class _Instruments {
             'Count of weather service operations by provider, '
             'operation, outcome, error kind, and country.',
       )
-      .._duration = meter.createHistogram<int>(
+      .._duration = meter.createHistogram<double>(
         name: 'weather.request.duration',
-        unit: 'ms',
-        description: 'Wall-clock duration of weather service operations.',
+        unit: 's',
+        description:
+            'Wall-clock duration of weather service operations, in '
+            'seconds (semconv prefers seconds for new duration instruments).',
         boundaries: const [
+          0.005,
+          0.01,
+          0.025,
+          0.05,
+          0.1,
+          0.25,
+          0.5,
+          1,
+          2.5,
           5,
           10,
-          25,
-          50,
-          100,
-          250,
-          500,
-          1000,
-          2500,
-          5000,
-          10000,
         ],
       );
   }
 
   late final APICounter<int> _requests;
-  late final APIHistogram<int> _duration;
+  late final APIHistogram<double> _duration;
 
   APICounter<int> get requests => _requests;
-  APIHistogram<int> get duration => _duration;
+  APIHistogram<double> get duration => _duration;
 }

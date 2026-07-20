@@ -254,7 +254,6 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
       final forecast = await Context.current
           .withSpan(span)
           .run(() => _getForecast(city: city, forecastDays: 3));
-      span.setStatus(.Ok);
       if (!mounted) return;
       setState(() {
         _forecast = forecast;

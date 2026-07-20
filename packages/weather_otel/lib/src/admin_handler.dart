@@ -7,7 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:shelf/shelf.dart';
 
 /// Builds the shelf handler exposed by `WeatherOtelHandle.demoAdminPipeline`
-/// when `OTEL_DEMO_MODE=true`.
+/// when `WEATHER_DEMO_MODE=true`.
 ///
 /// Routes:
 ///   * `GET  /healthz`  — always 200 for liveness / readiness probes.

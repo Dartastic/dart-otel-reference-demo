@@ -68,20 +68,34 @@ class InstrumentedHttpClient extends http.BaseClient {
       return await injectionContext.run(() async {
         try {
           final response = await _inner.send(request);
-          span
-            ..addAttributes(
-              OTel.attributesOf<Http>({
-                .httpResponseStatusCode: response.statusCode,
-                if (response.contentLength != null)
-                  .httpResponseBodySize: response.contentLength!,
-              }),
-            )
-            ..setStatus(_statusForCode(response.statusCode));
+          span..addAttributes(
+            OTel.attributesOf<Http>({
+              .httpResponseStatusCode: response.statusCode,
+              if (response.contentLength != null)
+                .httpResponseBodySize: response.contentLength!,
+            }),
+          );
+          // Client spans: >= 400 is Error (the server returned an error to
+          // this caller); below that stays Unset.
+          if (response.statusCode >= 400) {
+            span
+              ..setStatus(.Error)
+              ..addAttributes(
+                OTel.attributesFromSemanticMap({
+                  ErrorAttributes.errorType: '${response.statusCode}',
+                }),
+              );
+          }
           return response;
         } catch (e, st) {
           span
             ..recordException(e, stackTrace: st)
-            ..setStatus(.Error, e.toString());
+            ..setStatus(.Error, e.toString())
+            ..addAttributes(
+              OTel.attributesFromSemanticMap({
+                ErrorAttributes.errorType: e.runtimeType.toString(),
+              }),
+            );
           rethrow;
         }
       });
@@ -109,14 +123,6 @@ Attributes _clientRequestAttributes(http.BaseRequest request) {
     Server.serverAddress: url.host,
     if (url.hasPort) Server.serverPort: url.port,
   });
-}
-
-/// Maps HTTP client response status to a span status. For client spans the
-/// OTel HTTP semconv treats 4xx-and-up as errors (the server returned an
-/// error to *this* caller, regardless of whose fault it is).
-SpanStatusCode _statusForCode(int statusCode) {
-  if (statusCode >= 400) return .Error;
-  return .Ok;
 }
 
 /// Adapter that lets a propagator write into a [http.BaseRequest]'s

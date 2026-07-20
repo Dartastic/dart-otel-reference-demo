@@ -162,81 +162,85 @@ class OpenMeteoProvider implements WeatherProvider {
       },
     );
 
-    final span = OTel.tracer().startSpan(
-      'open-meteo geocode',
-      kind: SpanKind.client,
-      attributes: OTel.attributesFromSemanticMap({
-        ...<Http, Object>{.httpRequestMethod: 'GET'},
-        Url.urlFull: uri.toString(),
-        Server.serverAddress: uri.host,
-        ...<WeatherSemantics, Object>{
-          .provider: name,
-          .operation: 'geocode',
-          // Free-text query is high-cardinality — span-only.
-          .geocodeQuery: query,
-          .geocodeMaxResults: maxResults,
-        },
-      }),
-    );
+    final span = OTel.tracerProvider()
+        .getTracer('weather_core')
+        .startSpan(
+          'open-meteo geocode',
+          // INTERNAL: the wrapped InstrumentedHttpClient emits the HTTP client
+          // span (url.full, http.request.method, server.*) for this request —
+          // this span carries only the weather.* domain attributes.
+          attributes: OTel.attributesFromSemanticMap({
+            ...<WeatherSemantics, Object>{
+              .provider: name,
+              .operation: 'geocode',
+              // Free-text query is high-cardinality — span-only.
+              .geocodeQuery: query,
+              .geocodeMaxResults: maxResults,
+            },
+          }),
+        );
 
     var outcome = 'success';
     String? errorKind;
     try {
-      return await OTel.tracer().withSpanAsync(span, () async {
-        final body = await _get(uri, span: span, operation: 'geocode');
-        final decoded = _decodeJson(body);
+      return await OTel.tracer().withSpanAsync(
+        span,
+        exceptionOptions: const SpanExceptionOptions(
+          recordException: false,
+          setStatusOnException: false,
+        ),
+        () async {
+          final body = await _get(uri, span: span, operation: 'geocode');
+          final decoded = _decodeJson(body);
 
-        final rawResults = decoded['results'];
-        if (rawResults is! List) {
-          // Open-Meteo represents "no matches" as a 200 with no `results`
-          // key. This is not an exceptional condition.
-          span
-            ..addEvent(
+          final rawResults = decoded['results'];
+          if (rawResults is! List) {
+            // Open-Meteo represents "no matches" as a 200 with no `results`
+            // key. This is not an exceptional condition.
+            span..addEvent(
               OTel.spanEventNow(
                 'geocode.no_matches',
                 OTel.attributesFromMap(<String, Object>{
                   WeatherSemantics.geocodeMatchCount.key: 0,
                 }),
               ),
-            )
-            ..setStatus(.Ok);
-          return GeocodeResult(query: query, matches: const []);
-        }
+            );
+            return GeocodeResult(query: query, matches: const []);
+          }
 
-        final cities = <City>[];
-        for (final entry in rawResults) {
-          if (entry is Map<String, dynamic>) {
-            try {
-              cities.add(City.fromOpenMeteoJson(entry));
-            } on FormatException catch (e) {
-              // Skip malformed entries rather than failing the whole
-              // request; record an event so the issue is observable.
-              span.addEvent(
-                OTel.spanEventNow(
-                  'geocode.entry_skipped',
-                  OTel.attributesFromMap(<String, Object>{
-                    ExceptionAttributes.exceptionMessage.key: e.message,
-                  }),
-                ),
-              );
+          final cities = <City>[];
+          for (final entry in rawResults) {
+            if (entry is Map<String, dynamic>) {
+              try {
+                cities.add(City.fromOpenMeteoJson(entry));
+              } on FormatException catch (e) {
+                // Skip malformed entries rather than failing the whole
+                // request; record an event so the issue is observable.
+                span.addEvent(
+                  OTel.spanEventNow(
+                    'geocode.entry_skipped',
+                    OTel.attributesFromMap(<String, Object>{
+                      ExceptionAttributes.exceptionMessage.key: e.message,
+                    }),
+                  ),
+                );
+              }
             }
           }
-        }
 
-        span
-          ..addAttributes(
+          span..addAttributes(
             OTel.attributesFromMap(<String, Object>{
               WeatherSemantics.geocodeMatchCount.key: cities.length,
               WeatherSemantics.geocodeAmbiguous.key: cities.length > 1,
             }),
-          )
-          ..setStatus(.Ok);
+          );
 
-        return GeocodeResult(
-          query: query,
-          matches: List<City>.unmodifiable(cities),
-        );
-      });
+          return GeocodeResult(
+            query: query,
+            matches: List<City>.unmodifiable(cities),
+          );
+        },
+      );
     } on WeatherProviderException catch (e, st) {
       outcome = 'error';
       errorKind = e.kind.name;
@@ -293,42 +297,46 @@ class OpenMeteoProvider implements WeatherProvider {
       },
     );
 
-    final span = OTel.tracer().startSpan(
-      'open-meteo forecast',
-      kind: SpanKind.client,
-      attributes: OTel.attributesFromSemanticMap({
-        ...<Http, Object>{.httpRequestMethod: 'GET'},
-        Url.urlFull: uri.toString(),
-        Server.serverAddress: uri.host,
-        ...<WeatherSemantics, Object>{
-          .provider: name,
-          .operation: 'forecast',
-          .cityId: city.id,
-          // City name is high-cardinality. Span attribute only.
-          .cityName: city.name,
-          // Country code is bounded (~250 values) — both span and metric safe.
-          .cityCountryCode: city.countryCode,
-          .forecastDays: forecastDays,
-        },
-      }),
-    );
+    final span = OTel.tracerProvider()
+        .getTracer('weather_core')
+        .startSpan(
+          'open-meteo forecast',
+          // INTERNAL: see the geocode span above.
+          attributes: OTel.attributesFromSemanticMap({
+            ...<WeatherSemantics, Object>{
+              .provider: name,
+              .operation: 'forecast',
+              .cityId: city.id,
+              // City name is high-cardinality. Span attribute only.
+              .cityName: city.name,
+              // Country code is bounded (~250 values) — both span and metric safe.
+              .cityCountryCode: city.countryCode,
+              .forecastDays: forecastDays,
+            },
+          }),
+        );
 
     var outcome = 'success';
     String? errorKind;
     try {
-      return await OTel.tracer().withSpanAsync(span, () async {
-        final body = await _get(uri, span: span, operation: 'forecast');
-        final decoded = _decodeJson(body);
-        final fetchedAt = DateTime.now().toUtc();
+      return await OTel.tracer().withSpanAsync(
+        span,
+        exceptionOptions: const SpanExceptionOptions(
+          recordException: false,
+          setStatusOnException: false,
+        ),
+        () async {
+          final body = await _get(uri, span: span, operation: 'forecast');
+          final decoded = _decodeJson(body);
+          final fetchedAt = DateTime.now().toUtc();
 
-        try {
-          final forecast = WeatherForecast.fromOpenMeteoJson(
-            city: city,
-            json: decoded,
-            fetchedAt: fetchedAt,
-          );
-          span
-            ..addAttributes(
+          try {
+            final forecast = WeatherForecast.fromOpenMeteoJson(
+              city: city,
+              json: decoded,
+              fetchedAt: fetchedAt,
+            );
+            span..addAttributes(
               OTel.attributesFromMap(<String, Object>{
                 WeatherSemantics.currentWeatherCode.key:
                     forecast.current.weatherCode.code,
@@ -336,20 +344,20 @@ class OpenMeteoProvider implements WeatherProvider {
                     forecast.current.weatherCode.severity.name,
                 WeatherSemantics.currentIsDay.key: forecast.current.isDay,
               }),
-            )
-            ..setStatus(.Ok);
-          return forecast;
-        } on FormatException catch (e, st) {
-          throw WeatherProviderException(
-            kind: WeatherProviderErrorKind.parse,
-            providerName: name,
-            message:
-                'Forecast response did not match expected schema: ${e.message}',
-            cause: e,
-            causeStackTrace: st,
-          );
-        }
-      });
+            );
+            return forecast;
+          } on FormatException catch (e, st) {
+            throw WeatherProviderException(
+              kind: WeatherProviderErrorKind.parse,
+              providerName: name,
+              message:
+                  'Forecast response did not match expected schema: ${e.message}',
+              cause: e,
+              causeStackTrace: st,
+            );
+          }
+        },
+      );
     } on WeatherProviderException catch (e, st) {
       outcome = 'error';
       errorKind = e.kind.name;

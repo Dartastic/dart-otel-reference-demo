@@ -4,7 +4,7 @@ description: >-
   OTel.initialize with sensible defaults (BatchSpanProcessor, parent-based
   ratio sampler, generated service.instance.id), installs SIGTERM /
   SIGINT handlers for graceful shutdown, and exposes a demo-only admin
-  endpoint behind OTEL_DEMO_MODE for forced flush during throughput
+  endpoint behind WEATHER_DEMO_MODE for forced flush during throughput
   demonstrations.
 version: 0.1.0
 publish_to: none

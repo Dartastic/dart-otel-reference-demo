@@ -50,7 +50,7 @@ the container dies.
 
 ## Demo admin endpoint (sidecar only)
 
-When `OTEL_DEMO_MODE=true` is set in the environment, `demoAdminPipeline`
+When `WEATHER_DEMO_MODE=true` is set in the environment, `demoAdminPipeline`
 returns a shelf handler that exposes `POST /flush` and
 `GET /healthz`. Mount it on a **separate port** (e.g., `8081`) — never
 on the public-facing service — so the flush endpoint can never be
@@ -63,7 +63,7 @@ if (adminHandler != null) {
 }
 ```
 
-When `OTEL_DEMO_MODE` is unset (or not `true`), `demoAdminPipeline`
+When `WEATHER_DEMO_MODE` is unset (or not `true`), `demoAdminPipeline`
 returns `null` — the admin port is never opened in production
 binaries. See `DESIGN.md` § "Demo affordances" at the repository root.
 

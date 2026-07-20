@@ -44,9 +44,7 @@ const int maxForecastDays = 16;
 /// per cross-origin request and treating each as an independent
 /// observable event would inflate metrics and trace volume without
 /// adding signal.
-Handler buildWeatherApiPipeline({
-  required WeatherService service,
-}) {
+Handler buildWeatherApiPipeline({required WeatherService service}) {
   final router = _buildRouter(service, service.provider);
   return const Pipeline()
       .addMiddleware(_corsMiddleware())
@@ -124,8 +122,9 @@ Router _buildRouter(WeatherService service, WeatherProvider upstream) {
       final result = await upstream.geocode(query, maxResults: limit);
       return _jsonResponse(200, <String, Object>{
         'query': query,
-        'matches':
-            result.matches.map((c) => c.toJson()).toList(growable: false),
+        'matches': result.matches
+            .map((c) => c.toJson())
+            .toList(growable: false),
       });
     } on WeatherProviderException catch (e, st) {
       return _providerErrorResponse(e, st, operation: 'geocode');

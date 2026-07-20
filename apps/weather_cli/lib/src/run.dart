@@ -233,11 +233,12 @@ Future<int> runWeatherCli(
               city: best,
               forecastDays: days,
             );
-            out.write(asJson ? renderJson(forecast) : renderText(forecast));
-            // Ensure the trailing newline is present even if renderJson
-            // didn't include one — terminals and pipes both expect it.
-            if (!asJson || !renderJson(forecast).endsWith('\n')) out.writeln();
-            rootSpan.setStatus(.Ok);
+            final rendered = asJson
+                ? renderJson(forecast)
+                : renderText(forecast);
+            out.write(rendered);
+            // Ensure a trailing newline — terminals and pipes both expect it.
+            if (!rendered.endsWith('\n')) out.writeln();
             return exitOk;
           } on WeatherProviderException catch (e, st) {
             rootSpan

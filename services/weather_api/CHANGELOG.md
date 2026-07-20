@@ -8,4 +8,4 @@ All notable changes to this service are documented here. Format based on
 ### Added
 - Initial service: HTTP front door composing weather_core,
   weather_http_kit, and weather_otel. Exposes `GET /weather/<city>` and
-  `GET /healthz`. Optional admin port behind `OTEL_DEMO_MODE`.
+  `GET /healthz`. Optional admin port behind `WEATHER_DEMO_MODE`.

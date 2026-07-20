@@ -123,7 +123,7 @@ services:
       - "127.0.0.1:8091:8091"
     environment:
       PORT: "8090"
-      OTEL_DEMO_MODE: "true"
+      WEATHER_DEMO_MODE: "true"
       ADMIN_HOST: "0.0.0.0"
       ADMIN_PORT: "8091"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://lgtm:4317"
@@ -152,7 +152,7 @@ services:
       - "127.0.0.1:8081:8081"
     environment:
       PORT: "8080"
-      OTEL_DEMO_MODE: "true"
+      WEATHER_DEMO_MODE: "true"
       ADMIN_HOST: "0.0.0.0"
       ADMIN_PORT: "8081"
       # Service-to-service URL uses the compose service name as the

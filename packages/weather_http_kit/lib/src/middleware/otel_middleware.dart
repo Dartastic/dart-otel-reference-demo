@@ -85,6 +85,22 @@ Middleware otelMiddleware({
           'semantic conventions). Labels are deliberately low-cardinality '
           'so the series count stays bounded: only http.request.method, '
           'http.route, http.response.status_code, and url.scheme.',
+      boundaries: const [
+        0.005,
+        0.01,
+        0.025,
+        0.05,
+        0.075,
+        0.1,
+        0.25,
+        0.5,
+        0.75,
+        1,
+        2.5,
+        5,
+        7.5,
+        10,
+      ],
     );
     // Saturation proxy alongside the RED-style duration histogram.
     // We deliberately exclude `http.response.status_code` from the
@@ -134,6 +150,22 @@ Middleware otelMiddleware({
           'in seconds. Fires once per process. Used to graph cold-start '
           'cost distribution on the dashboard separately from the '
           'general-purpose http.server.request.duration histogram.',
+      boundaries: const [
+        0.005,
+        0.01,
+        0.025,
+        0.05,
+        0.075,
+        0.1,
+        0.25,
+        0.5,
+        0.75,
+        1,
+        2.5,
+        5,
+        7.5,
+        10,
+      ],
     );
 
     return (Request request) async {
@@ -217,24 +249,39 @@ Middleware otelMiddleware({
           try {
             final response = await innerHandler(request);
             observedStatusCode = response.statusCode;
-            span
-              ..addAttributes(
-                OTel.attributesOf<Http>({
-                  .httpResponseStatusCode: response.statusCode,
-                }),
-              )
-              ..setStatus(_statusForCode(response.statusCode));
+            span.addAttributes(
+              OTel.attributesOf<Http>({
+                .httpResponseStatusCode: response.statusCode,
+              }),
+            );
+            // Server spans: 5xx is Error; 1xx-4xx stay Unset (a 4xx is the
+            // caller's bad request, not the server's fault). error.type is
+            // conditionally required by HTTP semconv on error.
+            if (response.statusCode >= 500) {
+              span
+                ..setStatus(.Error)
+                ..addAttributes(
+                  OTel.attributesFromSemanticMap({
+                    ErrorAttributes.errorType: '${response.statusCode}',
+                  }),
+                );
+            }
             return response;
           } on HijackException {
-            // Handler took over the underlying socket; we can't observe
-            // the response. Treat this as a successful exit.
-            span.setStatus(.Ok);
+            // Handler took over the underlying socket; we can't observe the
+            // response. Leave the span status Unset (a successful upgrade is
+            // not an error) and rethrow.
             rethrow;
           } catch (e, st) {
             log.warning('Handler threw an exception', e, st);
             span
               ..recordException(e, stackTrace: st)
-              ..setStatus(.Error, e.toString());
+              ..setStatus(.Error, e.toString())
+              ..addAttributes(
+                OTel.attributesFromSemanticMap({
+                  ErrorAttributes.errorType: e.runtimeType.toString(),
+                }),
+              );
             rethrow;
           }
         });
@@ -397,14 +444,6 @@ Attributes _activeRequestAttributes(Request request, {required String? route}) {
     },
     Url.urlScheme: request.requestedUri.scheme,
   });
-}
-
-/// Maps an HTTP status code to a `SpanStatusCode` per the OTel HTTP
-/// semantic conventions: 4xx is Unset (callers' bad requests are not
-/// the server's fault), 5xx is Error, otherwise Ok.
-SpanStatusCode _statusForCode(int statusCode) {
-  if (statusCode >= 500) return .Error;
-  return .Ok;
 }
 
 /// Adapter that lets a [TextMapPropagator] read from a

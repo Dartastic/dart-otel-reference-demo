@@ -95,7 +95,7 @@ defect.
 The flush endpoint, the swarm script, and the bundled Grafana
 dashboards are demo affordances — they never run in a production
 deployment. The architectural commitment: they are sidecars,
-gated behind `OTEL_DEMO_MODE=true`, and the bootstrap helper that
+gated behind `WEATHER_DEMO_MODE=true`, and the bootstrap helper that
 exposes them short-circuits when the flag is unset. Production
 binaries do not exercise the code paths.
 
