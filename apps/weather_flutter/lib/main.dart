@@ -107,19 +107,13 @@ void main() {
           ? OtlpHttpProtocol.httpJson
           : OtlpHttpProtocol.httpProtobuf;
       final spanExporter = OtlpHttpSpanExporter(
-        OtlpHttpExporterConfig(
-          protocol: protocol,
-        ),
+        OtlpHttpExporterConfig(protocol: protocol),
       );
       final metricExporter = OtlpHttpMetricExporter(
-        OtlpHttpMetricExporterConfig(
-          protocol: protocol,
-        ),
+        OtlpHttpMetricExporterConfig(protocol: protocol),
       );
       final logExporter = OtlpHttpLogRecordExporter(
-        OtlpHttpLogRecordExporterConfig(
-          protocol: protocol,
-        ),
+        OtlpHttpLogRecordExporterConfig(protocol: protocol),
       );
 
       await OTel.initialize(

@@ -26,7 +26,7 @@ invariant in mind.
 
 The demo is **shipped end-to-end** as of this writing. Every pattern,
 package, dashboard, and deployment target listed in
-[README.md § What's shipped](./README.md#whats-shipped) is in code today
+[README.md § What's Contained in this Reference](./README.md#whats-contained-in-this-reference) is in code today
 and exercised by tests. There is no "not yet shipped" backlog blocking
 the launch — remaining work is content (the blog post itself,
 screenshots, the trace-walkthrough narrative) rather than instrumentation
