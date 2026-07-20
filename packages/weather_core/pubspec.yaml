@@ -19,7 +19,7 @@ dependencies:
   # `meter.createCounter` and `createHistogram` return them as their
   # statically-typed return value. So we depend on the API package
   # directly to name those types in field declarations and getters.
-  dartastic_opentelemetry: ^1.1.0-beta.9
+  dartastic_opentelemetry: ^1.1.0-beta.11
   dartastic_opentelemetry_api: ^1.0.0-rc.1
 
   # HTTP client for the Open-Meteo provider. The instrumented wrapper from

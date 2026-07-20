@@ -21,7 +21,7 @@ dependencies:
 
   # Dartastic OpenTelemetry (OSS). beta.9 includes the late-binding and
   # no-op-factory fixes Genkit relies on (formerly git overrides).
-  dartastic_opentelemetry: ^1.1.0-beta.9
+  dartastic_opentelemetry: ^1.1.0-beta.11
 
   http: ^1.5.0
   url_launcher: ^6.3.0

@@ -128,12 +128,10 @@ services:
       ADMIN_PORT: "8091"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://lgtm:4317"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
-      # The endpoint URL scheme is `http://` so the connection is
-      # cleartext — but the Dartastic SDK's exporter doesn't infer
-      # `secure` from the URL scheme; without this flag it defaults
-      # to TLS and fails with HandshakeException against an OTLP
-      # ingress that doesn't terminate TLS.
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      # The `http://` endpoint scheme selects a cleartext connection:
+      # as of dartastic_opentelemetry 1.1.0-beta.11 the exporter infers
+      # `secure` from the URL scheme (http => insecure, https => TLS),
+      # so no OTEL_EXPORTER_OTLP_INSECURE flag is needed here.
       OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=local"
     depends_on:
       lgtm:
@@ -163,9 +161,7 @@ services:
       WEATHER_UPSTREAM_URL: "http://cache-service:8090"
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://lgtm:4317"
       OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
-      # See note on cache-service above — the SDK doesn't infer
-      # `secure` from the endpoint URL scheme.
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      # `http://` scheme => cleartext (see cache-service note above).
       OTEL_RESOURCE_ATTRIBUTES: "deployment.environment=local"
     depends_on:
       lgtm:

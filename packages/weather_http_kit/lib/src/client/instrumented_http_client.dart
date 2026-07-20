@@ -37,14 +37,6 @@ class InstrumentedHttpClient extends http.BaseClient {
   final http.Client _inner;
   final String _tracerName;
 
-  // Singletons — the propagators are stateless and cheap to construct,
-  // but caching is the OTel convention and avoids per-request allocations.
-  // `static final` rather than `static const` because the SDK's
-  // W3CTraceContextPropagator and W3CBaggagePropagator classes don't
-  // expose const constructors.
-  static final _traceContextPropagator = W3CTraceContextPropagator();
-  static final _baggagePropagator = W3CBaggagePropagator();
-
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final tracer = OTel.tracerProvider().getTracer(_tracerName);
@@ -65,8 +57,7 @@ class InstrumentedHttpClient extends http.BaseClient {
     // chain and the calling baggage flow downstream.
     final injectionContext = Context.current.withSpan(span);
     final setter = _RequestHeaderSetter(request);
-    _traceContextPropagator.inject(injectionContext, request.headers, setter);
-    _baggagePropagator.inject(injectionContext, request.headers, setter);
+    OTelAPI.textMapPropagator.inject(injectionContext, request.headers, setter);
 
     // Activate the span for the duration of the inner send. We use
     // `injectionContext.run` rather than `tracer.withSpanAsync` so we own
