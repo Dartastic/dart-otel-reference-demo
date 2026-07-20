@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
+import 'package:otel_logging/otel_logging.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 import 'package:shelf/shelf.dart' show Handler;
@@ -86,6 +87,11 @@ class WeatherOtelHandle {
     await _sigintSub?.cancel();
     _sigtermSub = null;
     _sigintSub = null;
+
+    // Uninstall the package:logging → OTel bridge BEFORE shutting the
+    // SDK down, so records emitted during/after shutdown (including
+    // our own messages below) never hit a dead logs pipeline.
+    await PackageLoggingBridge.uninstall();
 
     try {
       await OTel.shutdown();

@@ -1,4 +1,4 @@
-# Dart OTel Demo
+# Dart OTel Reference Demo
 
 A reference implementation for use of the [Dartastic OpenTelemetry SDK][sdk] demonstrating well-instrumented:
 - Dart server applications,

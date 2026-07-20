@@ -80,9 +80,9 @@ class InstrumentedHttpClient extends http.BaseClient {
           span
             ..addAttributes(
               OTel.attributesOf<Http>({
-                .responseStatusCode: response.statusCode,
+                .httpResponseStatusCode: response.statusCode,
                 if (response.contentLength != null)
-                  .responseBodySize: response.contentLength!,
+                  .httpResponseBodySize: response.contentLength!,
               }),
             )
             ..setStatus(_statusForCode(response.statusCode));
@@ -110,13 +110,13 @@ Attributes _clientRequestAttributes(http.BaseRequest request) {
   final url = request.url;
   return OTel.attributesFromSemanticMap({
     ...<Http, Object>{
-      .requestMethod: request.method,
+      .httpRequestMethod: request.method,
       if (request.contentLength != null)
-        .requestBodySize: request.contentLength!,
+        .httpRequestBodySize: request.contentLength!,
     },
     Url.urlFull: url.toString(),
-    ServerResource.serverAddress: url.host,
-    if (url.hasPort) ServerResource.serverPort: url.port,
+    Server.serverAddress: url.host,
+    if (url.hasPort) Server.serverPort: url.port,
   });
 }
 

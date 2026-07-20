@@ -38,6 +38,11 @@ class WeatherService {
   final WeatherProvider _provider;
   final _Instruments _instruments;
 
+  /// The provider this service composes. Exposed so callers wiring a
+  /// pipeline (e.g. `buildWeatherApiPipeline`) don't have to be handed
+  /// the same provider twice.
+  WeatherProvider get provider => _provider;
+
   static final Logger _log = Logger('weather_core.WeatherService');
 
   /// Resolves [cityName] and returns a forecast.

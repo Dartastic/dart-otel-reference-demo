@@ -166,9 +166,9 @@ class OpenMeteoProvider implements WeatherProvider {
       'open-meteo geocode',
       kind: SpanKind.client,
       attributes: OTel.attributesFromSemanticMap({
-        ...<Http, Object>{.requestMethod: 'GET'},
+        ...<Http, Object>{.httpRequestMethod: 'GET'},
         Url.urlFull: uri.toString(),
-        ServerResource.serverAddress: uri.host,
+        Server.serverAddress: uri.host,
         ...<WeatherSemantics, Object>{
           .provider: name,
           .operation: 'geocode',
@@ -215,7 +215,7 @@ class OpenMeteoProvider implements WeatherProvider {
                 OTel.spanEventNow(
                   'geocode.entry_skipped',
                   OTel.attributesFromMap(<String, Object>{
-                    ExceptionResource.exceptionMessage.key: e.message,
+                    ExceptionAttributes.exceptionMessage.key: e.message,
                   }),
                 ),
               );
@@ -297,9 +297,9 @@ class OpenMeteoProvider implements WeatherProvider {
       'open-meteo forecast',
       kind: SpanKind.client,
       attributes: OTel.attributesFromSemanticMap({
-        ...<Http, Object>{.requestMethod: 'GET'},
+        ...<Http, Object>{.httpRequestMethod: 'GET'},
         Url.urlFull: uri.toString(),
-        ServerResource.serverAddress: uri.host,
+        Server.serverAddress: uri.host,
         ...<WeatherSemantics, Object>{
           .provider: name,
           .operation: 'forecast',
@@ -420,8 +420,8 @@ class OpenMeteoProvider implements WeatherProvider {
 
     span.addAttributes(
       OTel.attributesOf<Http>({
-        .responseStatusCode: response.statusCode,
-        .responseBodySize: response.bodyBytes.length,
+        .httpResponseStatusCode: response.statusCode,
+        .httpResponseBodySize: response.bodyBytes.length,
       }),
     );
 

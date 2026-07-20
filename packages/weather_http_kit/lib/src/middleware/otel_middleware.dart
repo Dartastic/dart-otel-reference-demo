@@ -5,7 +5,7 @@ import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
     show TextMapGetter;
 import 'package:logging/logging.dart';
-import 'package:shelf/shelf.dart';
+import 'package:shelf/shelf.dart' hide Server;
 
 /// Optional callback that lets the application provide a more specific
 /// span name than the default. Receives the inbound [Request] and should
@@ -68,15 +68,15 @@ Middleware otelMiddleware({
     // not per request. The OTel SDK is expected to be initialized
     // before the middleware is wrapped (server bootstrap calls
     // `initializeOtel` first). The metric name, instrument kind, and
-    // unit come from `HttpMetric.serverRequestDuration` — beta.6's
+    // unit come from `HttpMetric.httpServerRequestDuration` — beta.6's
     // spec-derived metric-name enum. Name + unit travel together so
     // typos in either are compile errors; same story for the
-    // in-flight gauge below (`HttpMetric.serverActiveRequests`).
+    // in-flight gauge below (`HttpMetric.httpServerActiveRequests`).
     // When exported via OTLP and translated to Prometheus the name
     // becomes `http_server_request_duration_seconds` (plus
     // `_bucket`, `_count`, `_sum` for the histogram series).
     final meter = OTel.meter(tracerName);
-    const httpServerDuration = HttpMetric.serverRequestDuration;
+    const httpServerDuration = HttpMetric.httpServerRequestDuration;
     final durationHistogram = meter.createHistogram<double>(
       name: httpServerDuration.name,
       unit: httpServerDuration.unit,
@@ -93,7 +93,7 @@ Middleware otelMiddleware({
     // ensuring cardinality stays bounded. The instrument's running
     // value is "how many requests are this service handling RIGHT
     // NOW" — a clean saturation panel on the dashboard.
-    const httpServerActive = HttpMetric.serverActiveRequests;
+    const httpServerActive = HttpMetric.httpServerActiveRequests;
     final activeRequests = meter.createUpDownCounter<int>(
       name: httpServerActive.name,
       unit: httpServerActive.unit,
@@ -233,7 +233,7 @@ Middleware otelMiddleware({
             span
               ..addAttributes(
                 OTel.attributesOf<Http>({
-                  .responseStatusCode: response.statusCode,
+                  .httpResponseStatusCode: response.statusCode,
                 }),
               )
               ..setStatus(_statusForCode(response.statusCode));
@@ -330,7 +330,7 @@ Attributes _serverRequestAttributes(
   // platform-specific code.
   return OTel.attributesFromSemanticMap({
     ...<Http, Object>{
-      .requestMethod: request.method,
+      .httpRequestMethod: request.method,
       if (route != null && route.isNotEmpty) .httpRoute: route,
     },
     ...<Url, Object>{
@@ -341,8 +341,8 @@ Attributes _serverRequestAttributes(
     // ServerResource keeps its suffix because `Server` clashes with
     // package:grpc's Server. Same dot-shorthand mechanic isn't
     // available — the enum prefix has to be spelled out.
-    ServerResource.serverAddress: url.host,
-    if (url.hasPort) ServerResource.serverPort: url.port,
+    Server.serverAddress: url.host,
+    if (url.hasPort) Server.serverPort: url.port,
     if (userAgent != null && userAgent.isNotEmpty)
       UserAgent.userAgentOriginal: userAgent,
     // FaaS keys. `faasColdstart` is always set — `false` after the
@@ -390,9 +390,9 @@ Attributes _metricAttributes(
 }) {
   return OTel.attributesFromSemanticMap({
     ...<Http, Object>{
-      .requestMethod: request.method,
+      .httpRequestMethod: request.method,
       .httpRoute: route ?? 'unknown',
-      .responseStatusCode: statusCode,
+      .httpResponseStatusCode: statusCode,
     },
     Url.urlScheme: request.requestedUri.scheme,
   });
@@ -405,7 +405,7 @@ Attributes _metricAttributes(
 Attributes _activeRequestAttributes(Request request, {required String? route}) {
   return OTel.attributesFromSemanticMap({
     ...<Http, Object>{
-      .requestMethod: request.method,
+      .httpRequestMethod: request.method,
       .httpRoute: route ?? 'unknown',
     },
     Url.urlScheme: request.requestedUri.scheme,

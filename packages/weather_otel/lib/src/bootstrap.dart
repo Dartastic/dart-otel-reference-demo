@@ -6,10 +6,10 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
+import 'package:otel_logging/otel_logging.dart';
 import 'package:logging/logging.dart';
 
 import 'handle.dart';
-import 'package_logging_bridge.dart';
 
 /// Default sampling ratio applied to root spans when no `samplingRatio`
 /// is provided and `OTEL_TRACES_SAMPLER_ARG` is not set in the
@@ -44,11 +44,9 @@ const double defaultSamplingRatio = 1.0;
 ///     so entries flow over OTLP with the active span's trace_id /
 ///     span_id attached. The application's own `Logger.root.onRecord`
 ///     listener (typically the one printing to stdout) keeps firing.
-///     Pass `bridgePackageLogging: false` to opt out. The demo
-///     ships its own ~40-line bridge in `package_logging_bridge.dart`;
-///     a higher-quality, production-grade alternative ships in
-///     `dartastic_opentelemetry_logging` as part of Dartastic.io
-///     Pro — see https://dartastic.io for the full Pro package set.
+///     Pass `bridgePackageLogging: false` to opt out. The bridge is
+///     `package:otel_logging` from pub.dev — install once, uninstall
+///     at shutdown.
 ///   * `BaggageSpanProcessor` — every entry in `Context.current.baggage`
 ///     is copied onto each starting span as a string attribute. This
 ///     is what makes low-cardinality baggage entries (like a
@@ -157,10 +155,10 @@ Future<WeatherOtelHandle> initializeOtel({
   // Dartastic Cloud, etc.) with the active span's trace_id/span_id
   // attached. The application's own `Logger.root.onRecord` listeners
   // (typically the one printing to stdout) keep firing — this is
-  // additive. See package_logging_bridge.dart for the SDK-issue
+  // additive. See package:otel_logging for the SDK-issue
   // tracking move of this convenience into the SDK itself.
   if (bridgePackageLogging) {
-    bridgePackageLoggingToOtel();
+    PackageLoggingBridge.install();
   }
 
   logger.info(
