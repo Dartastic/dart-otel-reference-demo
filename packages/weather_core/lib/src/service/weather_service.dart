@@ -66,80 +66,69 @@ class WeatherService {
     String? countryCode;
 
     try {
-      return await tracer.withSpanAsync(
-        span,
-        exceptionOptions: const SpanExceptionOptions(
-          recordException: false,
-          setStatusOnException: false,
-        ),
-        () async {
-          final geocoded = await _provider.geocode(cityName);
-          if (geocoded.isEmpty) {
-            span.addEvent(
-              OTel.spanEventNow(
-                'geocode.no_matches',
-                OTel.attributesFromMap(<String, Object>{
-                  WeatherSemantics.geocodeQuery.key: cityName,
-                }),
-              ),
-            );
-            throw WeatherProviderException(
-              kind: WeatherProviderErrorKind.notFound,
-              providerName: _provider.name,
-              message: 'No city matched query "$cityName"',
-            );
-          }
-
-          if (geocoded.isAmbiguous) {
-            span.addEvent(
-              OTel.spanEventNow(
-                'geocode.ambiguous',
-                OTel.attributesFromMap(<String, Object>{
-                  WeatherSemantics.geocodeMatchCount.key:
-                      geocoded.matches.length,
-                }),
-              ),
-            );
-            _log.fine(
-              'Ambiguous geocode for "$cityName" '
-              '(${geocoded.matches.length} matches); using first',
-            );
-          }
-
-          final best = geocoded.best;
-          countryCode = best.countryCode;
-
-          // Country code is bounded (~250 values) — safe on metrics. City id
-          // and city name are high-cardinality and remain span-only.
-          span.addAttributes(
-            OTel.attributesFromMap(<String, Object>{
-              WeatherSemantics.cityId.key: best.id,
-              WeatherSemantics.cityName.key: best.name,
-              WeatherSemantics.cityCountryCode.key: best.countryCode,
-            }),
+      return await tracer.withSpanAsync(span, () async {
+        final geocoded = await _provider.geocode(cityName);
+        if (geocoded.isEmpty) {
+          span.addEvent(
+            OTel.spanEventNow(
+              'geocode.no_matches',
+              OTel.attributesFromMap(<String, Object>{
+                WeatherSemantics.geocodeQuery.key: cityName,
+              }),
+            ),
           );
-
-          final forecast = await _provider.getForecast(
-            city: best,
-            forecastDays: forecastDays,
+          throw WeatherProviderException(
+            kind: WeatherProviderErrorKind.notFound,
+            providerName: _provider.name,
+            message: 'No city matched query "$cityName"',
           );
+        }
 
-          return forecast;
-        },
-      );
-    } on WeatherProviderException catch (e, st) {
+        if (geocoded.isAmbiguous) {
+          span.addEvent(
+            OTel.spanEventNow(
+              'geocode.ambiguous',
+              OTel.attributesFromMap(<String, Object>{
+                WeatherSemantics.geocodeMatchCount.key: geocoded.matches.length,
+              }),
+            ),
+          );
+          _log.fine(
+            'Ambiguous geocode for "$cityName" '
+            '(${geocoded.matches.length} matches); using first',
+          );
+        }
+
+        final best = geocoded.best;
+        countryCode = best.countryCode;
+
+        // Country code is bounded (~250 values) — safe on metrics. City id
+        // and city name are high-cardinality and remain span-only.
+        span.addAttributes(
+          OTel.attributesFromMap(<String, Object>{
+            WeatherSemantics.cityId.key: best.id,
+            WeatherSemantics.cityName.key: best.name,
+            WeatherSemantics.cityCountryCode.key: best.countryCode,
+          }),
+        );
+
+        final forecast = await _provider.getForecast(
+          city: best,
+          forecastDays: forecastDays,
+        );
+
+        return forecast;
+      });
+    } on WeatherProviderException catch (e) {
+      // withSpanAsync already recorded the exception and set the span
+      // status; here we only annotate the failure metrics.
       outcome = 'error';
       errorKind = e.kind.name;
-      span
-        ..recordException(e, stackTrace: st)
-        ..setStatus(.Error, e.message);
       rethrow;
-    } catch (e, st) {
+    } catch (e) {
+      // Span exception handling is owned by withSpanAsync.
       outcome = 'error';
       errorKind = WeatherProviderErrorKind.unknown.name;
-      span
-        ..recordException(e, stackTrace: st)
-        ..setStatus(.Error, e.toString());
       rethrow;
     } finally {
       stopwatch.stop();
