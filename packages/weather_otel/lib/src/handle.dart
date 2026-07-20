@@ -5,9 +5,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:otel_logging/otel_logging.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
+import 'package:otel_logging/otel_logging.dart';
 import 'package:shelf/shelf.dart' show Handler;
 
 import 'admin_handler.dart';

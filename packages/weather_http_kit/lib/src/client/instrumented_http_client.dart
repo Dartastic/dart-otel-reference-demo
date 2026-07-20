@@ -2,8 +2,6 @@
 // Copyright 2026, Mindful Software LLC.
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
-    show TextMapSetter;
 import 'package:http/http.dart' as http;
 
 /// An [http.Client] decorator that emits a `SpanKind.client` span for every
@@ -68,7 +66,7 @@ class InstrumentedHttpClient extends http.BaseClient {
       return await injectionContext.run(() async {
         try {
           final response = await _inner.send(request);
-          span..addAttributes(
+          span.addAttributes(
             OTel.attributesOf<Http>({
               .httpResponseStatusCode: response.statusCode,
               if (response.contentLength != null)

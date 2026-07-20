@@ -80,7 +80,7 @@ void main() {
 
     test('throws FormatException on missing required fields', () {
       expect(
-        () => City.fromJson(<String, dynamic>{'id': 1}),
+        () => City.fromJson(const <String, dynamic>{'id': 1}),
         throwsFormatException,
       );
     });
@@ -102,7 +102,7 @@ void main() {
 
     test('throws FormatException on a non-string observedAt', () {
       expect(
-        () => CurrentWeather.fromJson(<String, dynamic>{
+        () => CurrentWeather.fromJson(const <String, dynamic>{
           'observedAt': 1234567890,
           'weatherCode': 0,
           'isDay': true,

@@ -16,7 +16,7 @@ import 'package:weather_otel/src/admin_handler.dart';
 void main() {
   final log = Logger('admin_handler_test');
 
-  Request _req(String method, String path) {
+  Request req(String method, String path) {
     return Request(method, Uri.parse('http://admin$path'));
   }
 
@@ -26,7 +26,7 @@ void main() {
         forceFlush: () async {},
         logger: log,
       );
-      final response = await handler(_req('GET', '/healthz'));
+      final response = await handler(req('GET', '/healthz'));
       expect(response.statusCode, 200);
       expect(await response.readAsString(), 'ok\n');
     });
@@ -39,7 +39,7 @@ void main() {
         },
         logger: log,
       );
-      final response = await handler(_req('POST', '/flush'));
+      final response = await handler(req('POST', '/flush'));
       expect(calls, 1);
       expect(response.statusCode, 200);
       expect(await response.readAsString(), 'flushed\n');
@@ -50,7 +50,7 @@ void main() {
         forceFlush: () async => throw StateError('exporter unreachable'),
         logger: log,
       );
-      final response = await handler(_req('POST', '/flush'));
+      final response = await handler(req('POST', '/flush'));
       expect(response.statusCode, 500);
       expect(await response.readAsString(), contains('forceFlush failed'));
     });
@@ -60,7 +60,7 @@ void main() {
         forceFlush: () async {},
         logger: log,
       );
-      final response = await handler(_req('GET', '/flush'));
+      final response = await handler(req('GET', '/flush'));
       expect(response.statusCode, 405);
       expect(response.headers['allow'], 'POST');
     });
@@ -70,7 +70,7 @@ void main() {
         forceFlush: () async {},
         logger: log,
       );
-      final response = await handler(_req('POST', '/healthz'));
+      final response = await handler(req('POST', '/healthz'));
       expect(response.statusCode, 405);
       expect(response.headers['allow'], 'GET');
     });
@@ -80,7 +80,7 @@ void main() {
         forceFlush: () async {},
         logger: log,
       );
-      final response = await handler(_req('GET', '/anything-else'));
+      final response = await handler(req('GET', '/anything-else'));
       expect(response.statusCode, 404);
     });
   });

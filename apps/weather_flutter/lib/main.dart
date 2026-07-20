@@ -42,7 +42,6 @@
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:flutter/foundation.dart';
@@ -109,19 +108,16 @@ void main() {
           : OtlpHttpProtocol.httpProtobuf;
       final spanExporter = OtlpHttpSpanExporter(
         OtlpHttpExporterConfig(
-          endpoint: _defaultOtlpEndpoint,
           protocol: protocol,
         ),
       );
       final metricExporter = OtlpHttpMetricExporter(
         OtlpHttpMetricExporterConfig(
-          endpoint: _defaultOtlpEndpoint,
           protocol: protocol,
         ),
       );
       final logExporter = OtlpHttpLogRecordExporter(
         OtlpHttpLogRecordExporterConfig(
-          endpoint: _defaultOtlpEndpoint,
           protocol: protocol,
         ),
       );
@@ -238,7 +234,6 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
     // user's tap.
     final span = _tracer.startSpan(
       'fetchWeather',
-      kind: SpanKind.internal,
       attributes: OTel.attributesFromMap(<String, Object>{
         'app.action': 'fetch_weather',
         'app.input.city': city,

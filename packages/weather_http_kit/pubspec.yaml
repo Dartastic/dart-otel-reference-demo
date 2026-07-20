@@ -11,16 +11,11 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
-  # OpenTelemetry SDK. Library code; does not call OTel.initialize() —
-  # OpenTelemetry SDK. The Dartastic SDK re-exports MOST of the API
-  # surface, but TextMapGetter and TextMapSetter (the propagator
-  # interfaces we IMPLEMENT in _RequestHeaderGetter / _RequestHeaderSetter)
-  # are not in the SDK's show clause. So we depend on the API
-  # package directly. The SDK still owns OTel.initialize(), spans,
-  # meters, processors, and exporters — consumers do that at app
-  # startup.
+  # OpenTelemetry SDK. Library code; does not call OTel.initialize()
+  # (consumers do that at app startup). The SDK barrel re-exports the
+  # full API surface — including TextMapGetter/TextMapSetter, which the
+  # header adapters implement — so no direct API dependency is needed.
   dartastic_opentelemetry: ^1.1.0-beta.11
-  dartastic_opentelemetry_api: ^1.0.0-rc.1
 
   # HTTP client we wrap, and shelf for the server-side middleware.
   http: ^1.5.0

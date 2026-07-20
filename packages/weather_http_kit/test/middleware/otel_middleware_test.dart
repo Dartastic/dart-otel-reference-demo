@@ -4,9 +4,9 @@
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:shelf/shelf.dart';
 import 'package:test/test.dart';
-import 'package:weather_http_kit/weather_http_kit.dart';
 import 'package:weather_http_kit/src/middleware/otel_middleware.dart'
     show debugResetColdStartForTesting;
+import 'package:weather_http_kit/weather_http_kit.dart';
 
 import '../_helpers/otel_test_harness.dart';
 

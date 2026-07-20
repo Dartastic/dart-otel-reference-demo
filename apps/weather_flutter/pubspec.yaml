@@ -29,14 +29,14 @@ dependencies:
   weather_http_kit:
     path: ../../packages/weather_http_kit
 
-  # Dartastic OpenTelemetry SDK. 1.1.0-beta.2 is the first SDK
-  # release with browser support (dart2js and dart2wasm both work
-  # against the OTLP HTTP exporter).
+  # Dartastic OpenTelemetry SDK. Browser-capable — dart2js and dart2wasm
+  # both work against the OTLP HTTP exporter. The barrel re-exports the
+  # full API surface, so no direct API dependency is needed.
   dartastic_opentelemetry: ^1.1.0-beta.11
-  dartastic_opentelemetry_api: ^1.0.0-rc.1
 
   http: ^1.5.0
 
+  logging: ^1.3.0
 dev_dependencies:
   # Same lint set as every other workspace package — the
   # Dart-and-Flutter-team's own `dart_flutter_team_lints`. Aligns with

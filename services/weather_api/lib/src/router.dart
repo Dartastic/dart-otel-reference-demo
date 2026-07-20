@@ -201,7 +201,7 @@ Router _buildRouter(WeatherService service, WeatherProvider upstream) {
         'error': 'invalid_request',
         'message':
             '"days" must be an integer in $minForecastDays..$maxForecastDays',
-        if (daysRaw != null) 'received': daysRaw,
+        'received': ?daysRaw,
       });
     }
 

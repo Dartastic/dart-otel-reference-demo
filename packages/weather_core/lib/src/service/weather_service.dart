@@ -3,16 +3,10 @@
 
 import 'dart:async';
 
-// SDK re-exports MOST of the API surface (Tracer, Span, Context,
-// Attributes, semantic enums) via a `show` clause. The
-// instrument-interface types `APICounter` and `APIHistogram` are NOT
-// in that show clause — `meter.createCounter`/`createHistogram`
-// return them as their statically-typed return value, so we import
-// them from the API package directly to name them in field
-// declarations and getters.
+// The SDK barrel re-exports the full API surface — semantic enums,
+// Context, Attributes, Span, Tracer, and the instrument-interface
+// types (APICounter, APIHistogram) — so one import covers everything.
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
-    show APICounter, APIHistogram;
 import 'package:logging/logging.dart';
 
 import '../instrumentation/weather_semantics.dart';

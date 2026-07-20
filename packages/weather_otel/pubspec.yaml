@@ -24,7 +24,7 @@ dependencies:
   # metadata server. weather_otel does not own any application
   # network traffic — only the metadata-server hop on first
   # request when running on Cloud Run.
-  http: ^1.2.0
+  http: ^1.5.0
 
   logging: ^1.3.0
   otel_logging: ^0.1.0-beta.1

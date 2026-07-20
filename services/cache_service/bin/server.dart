@@ -109,8 +109,9 @@ void _configureLogging() {
     final tag = '[${record.level.name}] ${record.loggerName}';
     stdout.writeln('$time $tag: ${record.message}');
     if (record.error != null) stdout.writeln('  error: ${record.error}');
-    if (record.stackTrace != null)
+    if (record.stackTrace != null) {
       stdout.writeln('  stack:\n${record.stackTrace}');
+    }
   });
 }
 

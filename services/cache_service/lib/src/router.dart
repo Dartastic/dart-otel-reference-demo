@@ -4,8 +4,6 @@
 import 'dart:convert';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
-    show APICounter;
 import 'package:logging/logging.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
@@ -31,7 +29,7 @@ final _log = Logger('cache_service.router');
 /// series total, bounded forever. Safe under any backend's series
 /// cap. Service-level attributes (service.name etc.) are added by
 /// the SDK as resource attributes, not by us here.
-late final APICounter<int> _cacheLookups = OTel.meter('cache_service')
+final APICounter<int> _cacheLookups = OTel.meter('cache_service')
     .createCounter<int>(
       name: 'weather.cache.lookups',
       unit: '1',

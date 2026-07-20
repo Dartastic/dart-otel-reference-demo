@@ -117,7 +117,7 @@ void main() {
       // serializers themselves is exercised in weather_core's tests.
       expect(body['city'], isA<Map<String, dynamic>>());
       expect((body['city'] as Map<String, dynamic>)['name'], 'Boston');
-      expect((body['daily'] as List), hasLength(2));
+      expect(body['daily'] as List, hasLength(2));
     });
 
     test('uses defaultForecastDays when days is omitted', () async {
@@ -130,7 +130,7 @@ void main() {
       expect(response.statusCode, 200);
       final body =
           jsonDecode(await response.readAsString()) as Map<String, dynamic>;
-      expect((body['daily'] as List), hasLength(defaultForecastDays));
+      expect(body['daily'] as List, hasLength(defaultForecastDays));
     });
 
     test('returns 400 with diagnostic body for non-integer days', () async {

@@ -5,14 +5,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-// The SDK re-exports MOST of the API surface (Tracer, Span, Context,
-// Attributes, semantic enums) — but NOT the abstract instrument
-// interfaces (APICounter, APIHistogram), which is why we depend on
-// the API package directly to name them. Same constraint
-// `weather_service.dart` and `cache_service`'s router work around.
+// One import: the SDK barrel re-exports the full API surface,
+// including the instrument-interface types (APICounter, APIHistogram).
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
-    show APICounter;
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
@@ -106,8 +101,8 @@ class OpenMeteoProvider implements WeatherProvider {
   ///                  (only present when outcome=error)
   /// Upper bound: ~80 series — safe under any backend's per-metric
   /// series cap.
-  static late final APICounter<int> _upstreamRequests =
-      OTel.meter('weather_core').createCounter<int>(
+  static final APICounter<int> _upstreamRequests = OTel.meter('weather_core')
+      .createCounter<int>(
         name: 'weather.upstream.requests',
         unit: '1',
         description:
@@ -197,7 +192,7 @@ class OpenMeteoProvider implements WeatherProvider {
           if (rawResults is! List) {
             // Open-Meteo represents "no matches" as a 200 with no `results`
             // key. This is not an exceptional condition.
-            span..addEvent(
+            span.addEvent(
               OTel.spanEventNow(
                 'geocode.no_matches',
                 OTel.attributesFromMap(<String, Object>{
@@ -228,7 +223,7 @@ class OpenMeteoProvider implements WeatherProvider {
             }
           }
 
-          span..addAttributes(
+          span.addAttributes(
             OTel.attributesFromMap(<String, Object>{
               WeatherSemantics.geocodeMatchCount.key: cities.length,
               WeatherSemantics.geocodeAmbiguous.key: cities.length > 1,
@@ -336,7 +331,7 @@ class OpenMeteoProvider implements WeatherProvider {
               json: decoded,
               fetchedAt: fetchedAt,
             );
-            span..addAttributes(
+            span.addAttributes(
               OTel.attributesFromMap(<String, Object>{
                 WeatherSemantics.currentWeatherCode.key:
                     forecast.current.weatherCode.code,

@@ -186,7 +186,6 @@ Future<int> runWeatherCli(
   final tracer = OTel.tracerProvider().getTracer('weather_cli');
   final rootSpan = tracer.startSpan(
     'cli.forecast',
-    kind: SpanKind.internal,
     attributes: OTel.attributesFromMap(<String, Object>{
       'cli.command': 'forecast',
       'cli.city': city,

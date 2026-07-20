@@ -2,8 +2,6 @@
 // Copyright 2026, Mindful Software LLC.
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
-    show TextMapGetter;
 import 'package:logging/logging.dart';
 import 'package:shelf/shelf.dart' hide Server;
 

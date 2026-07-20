@@ -6,8 +6,8 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:otel_logging/otel_logging.dart';
 import 'package:logging/logging.dart';
+import 'package:otel_logging/otel_logging.dart';
 
 import 'handle.dart';
 
@@ -119,7 +119,7 @@ Future<WeatherOtelHandle> initializeOtel({
   // parameters. Adding them to resourceAttributes would conflict.
   final resourceAttrs = <String, Object>{
     'service.instance.id': instanceId,
-    if (serviceNamespace != null) 'service.namespace': serviceNamespace,
+    'service.namespace': ?serviceNamespace,
     ...?extraResourceAttributes,
   };
 
