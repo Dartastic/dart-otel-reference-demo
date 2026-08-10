@@ -45,21 +45,16 @@ jobs:
       - name: Resolve workspace
         run: flutter pub get
 
-      # apps/dinger is excluded from every gate below, and not because it
-      # is a workspace non-member: it depends on genkit by PATH, at
-      # ../../../genkit-dart, a clone that only exists on the author's
-      # machine. Nobody who clones this repo can resolve it, so CI cannot
-      # either. Its own pubspec records the exit condition -- "switch to a
-      # pub.dev version once a Genkit release ships the Dartastic dep" --
-      # and when that lands, drop the exclusions here and it is covered.
+      # apps/dinger is deliberately NOT a workspace member (standalone, and
+      # it needs a newer Dart floor), so it resolves separately. It pulls
+      # genkit from a public git ref, so CI can fetch it like anyone else.
+      - name: Resolve dinger
+        run: flutter pub get
+        working-directory: apps/dinger
 
-      # Zero lints, info level included. Paths are explicit rather than
-      # analyzing the tree, so dinger's unresolvable graph cannot fail a
-      # gate that is not about dinger.
+      # Zero lints, info level included.
       - name: Analyze
-        run: >
-          dart analyze --fatal-infos
-          packages services apps/weather_cli apps/weather_flutter
+        run: dart analyze --fatal-infos
 
       # Every suite. Flutter packages need `flutter test`; pure-Dart ones
       # use `dart test`. Discovered rather than listed, so a new package
@@ -72,8 +67,6 @@ jobs:
           while IFS= read -r dir; do
             pkg="${dir%/test}"
             [ -n "$(find "$dir" -name '*_test.dart' -print -quit)" ] || continue
-            # See the note above: dinger cannot resolve off the author's box.
-            case "$pkg" in ./apps/dinger) echo "skipping $pkg (unresolvable path dep)"; continue;; esac
             if grep -q 'sdk: flutter' "$pkg/pubspec.yaml" 2>/dev/null; then
               echo "::group::flutter test $pkg"
               (cd "$pkg" && flutter test) || failed=1
@@ -93,6 +86,13 @@ jobs:
       - name: Build weather_flutter (web)
         run: flutter build web --release
         working-directory: apps/weather_flutter
+
+      # dinger earns its own build step: analyze and test both pass on it
+      # while dart2js fails, because a whole-program compile is what
+      # catches an API its dependency does not actually expose.
+      - name: Build dinger (web)
+        run: flutter build web --release
+        working-directory: apps/dinger
 
       # AOT-compile the servers and the CLI. `dart analyze` does not catch
       # everything the AOT compiler rejects.

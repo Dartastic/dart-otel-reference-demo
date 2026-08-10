@@ -11,16 +11,27 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
-  # Google Genkit — depended on via PATH to the local clone that has
-  # Workiva's OpenTelemetry ripped out and Dartastic dropped in. Switch
-  # to a pub.dev version once a Genkit release ships the Dartastic dep.
+  # Google Genkit — the fork that has Workiva's OpenTelemetry ripped out
+  # and Dartastic dropped in, consumed by GIT REF so anyone who clones
+  # this repo can build it. It was a path dep to a sibling checkout,
+  # which only ever resolved on one machine. Pinned to a commit rather
+  # than a branch so a build is reproducible; bump it deliberately.
+  # Switch to a pub.dev version once a Genkit release ships the
+  # Dartastic dep.
   genkit:
-    path: ../../../genkit-dart/packages/genkit
+    git:
+      url: https://github.com/MindfulSoftwareLLC/genkit-dart.git
+      ref: ba72f2e7af0ec3637d14cdc4a37c4d15568985c4
+      path: packages/genkit
   genkit_google_genai:
-    path: ../../../genkit-dart/packages/genkit_google_genai
+    git:
+      url: https://github.com/MindfulSoftwareLLC/genkit-dart.git
+      ref: ba72f2e7af0ec3637d14cdc4a37c4d15568985c4
+      path: packages/genkit_google_genai
 
-  # Dartastic OpenTelemetry (OSS). beta.9 includes the late-binding and
-  # no-op-factory fixes Genkit relies on (formerly git overrides).
+  # Dartastic OpenTelemetry (OSS). The published beta is the target; see
+  # the dependency_overrides below for why it is not what actually
+  # resolves yet.
   dartastic_opentelemetry: ^1.1.0-beta.12
 
   http: ^1.5.0
@@ -33,11 +44,38 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.10.5
 
-dependency_overrides:
-  # genkit_google_genai pins genkit from pub.dev; force everything to the
-  # local Dartastic-wired clone so the whole graph uses one genkit.
-  genkit:
-    path: ../../../genkit-dart/packages/genkit
-
 flutter:
   uses-material-design: true
+
+# Genkit calls `OTel.isInitialized`, which the published SDK does not have
+# yet -- it lives on the in-flight branches below. Without these overrides
+# the app analyzes and tests clean and then fails to compile:
+#
+#   packages/genkit/lib/src/o11y/telemetry/exporter_impl.dart:58
+#   Error: Member not found: 'isInitialized'.
+#
+# The genkit fork carries the same two overrides in its own root pubspec,
+# but dependency_overrides only apply in a resolution's ROOT, so they do
+# nothing for consumers and have to be repeated here.
+#
+# Pinned to commits, not branches, so a build is reproducible. Both repos
+# are public, so this resolves for anyone who clones -- which is the whole
+# point of moving off the old path dependency.
+#
+# DELETE THIS BLOCK once a published SDK exposes `OTel.isInitialized`.
+dependency_overrides:
+  # genkit_google_genai pins genkit from pub.dev; force the whole graph
+  # onto the one Dartastic-wired fork.
+  genkit:
+    git:
+      url: https://github.com/MindfulSoftwareLLC/genkit-dart.git
+      ref: ba72f2e7af0ec3637d14cdc4a37c4d15568985c4
+      path: packages/genkit
+  dartastic_opentelemetry:
+    git:
+      url: https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry.git
+      ref: a8c209fa86af4f91c935ca855a80f23aa7ed3496
+  dartastic_opentelemetry_api:
+    git:
+      url: https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry_api.git
+      ref: 6cb73afaef3d0434132f12b39ca9f4fd1223944e
