@@ -21,12 +21,12 @@ void main() {
   }
 
   group('buildDemoAdminHandler', () {
-    test('GET /healthz returns 200 with body "ok"', () async {
+    test('GET /health returns 200 with body "ok"', () async {
       final handler = buildDemoAdminHandler(
         forceFlush: () async {},
         logger: log,
       );
-      final response = await handler(req('GET', '/healthz'));
+      final response = await handler(req('GET', '/health'));
       expect(response.statusCode, 200);
       expect(await response.readAsString(), 'ok\n');
     });
@@ -65,12 +65,12 @@ void main() {
       expect(response.headers['allow'], 'POST');
     });
 
-    test('POST /healthz returns 405 with Allow: GET', () async {
+    test('POST /health returns 405 with Allow: GET', () async {
       final handler = buildDemoAdminHandler(
         forceFlush: () async {},
         logger: log,
       );
-      final response = await handler(req('POST', '/healthz'));
+      final response = await handler(req('POST', '/health'));
       expect(response.statusCode, 405);
       expect(response.headers['allow'], 'GET');
     });

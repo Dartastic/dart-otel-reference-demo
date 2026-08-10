@@ -66,7 +66,7 @@ const double defaultSamplingRatio = 1.0;
 ///
 /// Demo affordance: when the environment has `WEATHER_DEMO_MODE=true`, the
 /// returned handle's `demoAdminPipeline()` returns a shelf handler that
-/// exposes `POST /flush` and `GET /healthz`. Mount it on a private
+/// exposes `POST /flush` and `GET /health`. Mount it on a private
 /// admin port; never on the public-facing service port. When the env is
 /// unset, `demoAdminPipeline()` returns null and the admin endpoint is
 /// never built.

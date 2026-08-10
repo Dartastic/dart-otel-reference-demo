@@ -10,12 +10,12 @@ import 'package:shelf/shelf.dart';
 /// when `WEATHER_DEMO_MODE=true`.
 ///
 /// Routes:
-///   * `GET  /healthz`  — always 200 for liveness / readiness probes.
+///   * `GET  /health`  — always 200 for liveness / readiness probes.
 ///   * `POST /flush`    — calls [forceFlush] and returns 200 on success,
 ///                        500 with a short diagnostic body on failure.
 ///   * Anything else    — 404.
 ///
-/// Methods other than `GET` on `/healthz` and `POST` on `/flush` return
+/// Methods other than `GET` on `/health` and `POST` on `/flush` return
 /// 405 with an `Allow` header. The handler does NOT use the OpenTelemetry
 /// shelf middleware — admin requests should not appear in the trace tree
 /// they are flushing.
@@ -27,7 +27,7 @@ Handler buildDemoAdminHandler({
     final path = request.url.path;
     final method = request.method;
 
-    if (path == 'healthz') {
+    if (path == 'health') {
       if (method != 'GET') {
         return Response(
           405,

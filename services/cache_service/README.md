@@ -22,7 +22,7 @@ kind of thing operators learn to read on dashboards.
 | ------ | ---------------- | ------------------------------------------------------------- |
 | `GET`  | `/v1/geocode`    | Returns matching cities for `?q=<query>&limit=<int>` (1..50). |
 | `POST` | `/v1/forecast`   | Returns a forecast for the supplied `{city, forecastDays}`.   |
-| `GET`  | `/healthz`       | Liveness / readiness probe.                                   |
+| `GET`  | `/health`       | Liveness / readiness probe.                                   |
 
 The wire-format contract is documented at
 `packages/weather_client/README.md`. `cache_service` is the

@@ -33,7 +33,7 @@ const int maxForecastDays = 16;
 ///      baggage extraction, HTTP semconv attributes.
 ///   3. The router below — `GET /weather/<city>`, the v1 wire-format
 ///      pass-throughs (`GET /v1/geocode`, `POST /v1/forecast` — see
-///      packages/weather_client/README.md), and `GET /healthz`.
+///      packages/weather_client/README.md), and `GET /health`.
 ///
 /// The OTel middleware is the outermost layer of the instrumented
 /// stack so server spans cover even 4xx/5xx responses produced by the
@@ -92,7 +92,7 @@ Middleware _corsMiddleware() {
 Router _buildRouter(WeatherService service, WeatherProvider upstream) {
   final router = Router();
 
-  router.get('/healthz', (Request _) {
+  router.get('/health', (Request _) {
     return Response.ok('ok\n');
   });
 
@@ -258,7 +258,7 @@ Router _buildRouter(WeatherService service, WeatherProvider upstream) {
 /// span name.
 String? _routeTemplateFor(Request request) {
   final segments = request.url.pathSegments;
-  if (segments.length == 1 && segments[0] == 'healthz') return '/healthz';
+  if (segments.length == 1 && segments[0] == 'health') return '/health';
   if (segments.length == 2 && segments[0] == 'weather') return '/weather/:city';
   if (segments.length == 2 && segments[0] == 'v1') {
     if (segments[1] == 'geocode') return '/v1/geocode';

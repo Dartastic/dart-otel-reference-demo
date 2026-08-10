@@ -60,7 +60,7 @@ Content-Type: application/json
 }
 ```
 
-### `GET <baseUrl>/healthz`
+### `GET <baseUrl>/health`
 
 Always 200 if the service is up. Body `"ok\n"`.
 

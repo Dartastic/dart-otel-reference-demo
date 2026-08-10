@@ -98,7 +98,7 @@ Router _buildRouter({
 }) {
   final router = Router();
 
-  router.get('/healthz', (Request _) => Response.ok('ok\n'));
+  router.get('/health', (Request _) => Response.ok('ok\n'));
 
   router.get('/v1/geocode', (Request request) async {
     final query = request.url.queryParameters['q']?.trim() ?? '';
@@ -228,7 +228,7 @@ Router _buildRouter({
 /// as the server-span name. Bounded cardinality (3 templates total).
 String? _routeTemplateFor(Request request) {
   final segments = request.url.pathSegments;
-  if (segments.length == 1 && segments[0] == 'healthz') return '/healthz';
+  if (segments.length == 1 && segments[0] == 'health') return '/health';
   if (segments.length == 2 && segments[0] == 'v1') {
     if (segments[1] == 'geocode') return '/v1/geocode';
     if (segments[1] == 'forecast') return '/v1/forecast';

@@ -44,7 +44,7 @@ typedef WeatherClientTokenProvider = Future<String?> Function();
 ///   POST <baseUrl>/v1/forecast
 ///        body: { "city": <City>, "forecastDays": N }
 ///        → 200 <WeatherForecast>
-///   GET  <baseUrl>/healthz
+///   GET  <baseUrl>/health
 ///        → 200 "ok\n"
 /// ```
 ///
