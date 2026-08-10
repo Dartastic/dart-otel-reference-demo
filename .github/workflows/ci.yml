@@ -45,18 +45,21 @@ jobs:
       - name: Resolve workspace
         run: flutter pub get
 
-      # apps/dinger is deliberately NOT a workspace member (it is a
-      # standalone blog demo with its own SDK floor), so it resolves on
-      # its own or it would be analyzed against stale package config.
-      - name: Resolve dinger
-        run: flutter pub get
-        working-directory: apps/dinger
+      # apps/dinger is excluded from every gate below, and not because it
+      # is a workspace non-member: it depends on genkit by PATH, at
+      # ../../../genkit-dart, a clone that only exists on the author's
+      # machine. Nobody who clones this repo can resolve it, so CI cannot
+      # either. Its own pubspec records the exit condition -- "switch to a
+      # pub.dev version once a Genkit release ships the Dartastic dep" --
+      # and when that lands, drop the exclusions here and it is covered.
 
-      # Zero lints, info level included. `dart analyze` exits non-zero on
-      # infos only with --fatal-infos, which is the standard this repo
-      # already holds itself to.
+      # Zero lints, info level included. Paths are explicit rather than
+      # analyzing the tree, so dinger's unresolvable graph cannot fail a
+      # gate that is not about dinger.
       - name: Analyze
-        run: dart analyze --fatal-infos
+        run: >
+          dart analyze --fatal-infos
+          packages services apps/weather_cli apps/weather_flutter
 
       # Every suite. Flutter packages need `flutter test`; pure-Dart ones
       # use `dart test`. Discovered rather than listed, so a new package
@@ -69,6 +72,8 @@ jobs:
           while IFS= read -r dir; do
             pkg="${dir%/test}"
             [ -n "$(find "$dir" -name '*_test.dart' -print -quit)" ] || continue
+            # See the note above: dinger cannot resolve off the author's box.
+            case "$pkg" in ./apps/dinger) echo "skipping $pkg (unresolvable path dep)"; continue;; esac
             if grep -q 'sdk: flutter' "$pkg/pubspec.yaml" 2>/dev/null; then
               echo "::group::flutter test $pkg"
               (cd "$pkg" && flutter test) || failed=1
