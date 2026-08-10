@@ -16,7 +16,7 @@ dependencies:
   # (semantic enums, Context, Attributes, Span, Tracer, and the
   # instrument-interface types APICounter/APIHistogram), so no direct
   # dependency on dartastic_opentelemetry_api is needed.
-  dartastic_opentelemetry: ^1.1.0-beta.11
+  dartastic_opentelemetry: ^1.1.0-beta.12
 
   # HTTP client for the Open-Meteo provider. The instrumented wrapper from
   # weather_http_kit will be injected by consumers; this package depends only

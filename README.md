@@ -395,7 +395,7 @@ target you can read or copy from this repo.
   in debug builds, protobuf in release builds — selected via
   `kDebugMode`); a manually-started root span around the user's
   tap; and `InstrumentedHttpClient` for trace-context propagation
-  on every outbound request. Demonstrates that SDK 1.1.0-beta.11 + API
+  on every outbound request. Demonstrates that SDK 1.1.0-beta.12 + API
   1.0.0-rc.1 work in dart2js AND dart2wasm — five-level trace
   tree from the tap through to Open-Meteo, with payloads readable
   in DevTools. **Sub-millisecond span timing** on web comes for
