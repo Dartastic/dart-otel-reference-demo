@@ -51,6 +51,8 @@ import 'package:logging/logging.dart';
 import 'package:weather_core/weather_core.dart';
 import 'package:weather_http_kit/weather_http_kit.dart';
 
+import 'src/resources.dart';
+
 const String _serviceName = 'weather-flutter';
 const String _serviceVersion = '0.1.0';
 
@@ -136,6 +138,12 @@ void main() {
         await OTel.initialize(
           serviceName: _serviceName,
           serviceVersion: _serviceVersion,
+          // Which build, on which device. Resource-level because it
+          // describes the whole app, not one operation — so every span,
+          // metric and log carries it and the backend can group by it.
+          resourceAttributes: OTel.attributesFromMap(
+            await demoResourceAttributes(),
+          ),
           endpoint: _defaultOtlpEndpoint,
           // TLS follows the endpoint scheme rather than a hardcoded flag,
           // so pointing this at an https collector just works. Same rule

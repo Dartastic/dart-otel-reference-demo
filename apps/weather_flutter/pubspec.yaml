@@ -36,6 +36,15 @@ dependencies:
 
   http: ^1.5.0
 
+  # App version/build for the app.build_id resource attribute. Flutter bakes
+  # the pubspec `version:` into the platform build, so this reports the
+  # release the user is actually running.
+  package_info_plus: ^10.0.0
+
+  # Device model for device.model.identifier, so telemetry can be sliced by
+  # hardware. Web resolves the stub in lib/src/device_model_web.dart.
+  device_info_plus: ^13.0.0
+
   logging: ^1.3.0
 dev_dependencies:
   # Same lint set as every other workspace package — the
