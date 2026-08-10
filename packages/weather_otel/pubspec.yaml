@@ -4,7 +4,7 @@ description: >-
   OTel.initialize with sensible defaults (BatchSpanProcessor, parent-based
   ratio sampler, generated service.instance.id), installs SIGTERM /
   SIGINT handlers for graceful shutdown, and exposes a demo-only admin
-  endpoint behind OTEL_DEMO_MODE for forced flush during throughput
+  endpoint behind WEATHER_DEMO_MODE for forced flush during throughput
   demonstrations.
 version: 0.1.0
 publish_to: none
@@ -15,7 +15,7 @@ environment:
 
 dependencies:
   # OpenTelemetry SDK. The bootstrap is a thin wrapper over OTel.initialize.
-  dartastic_opentelemetry: ^1.1.0-beta.9
+  dartastic_opentelemetry: ^1.1.0-beta.11
 
   # shelf is used only for the optional demo admin endpoint.
   shelf: ^1.4.2
@@ -24,7 +24,7 @@ dependencies:
   # metadata server. weather_otel does not own any application
   # network traffic — only the metadata-server hop on first
   # request when running on Cloud Run.
-  http: ^1.2.0
+  http: ^1.5.0
 
   logging: ^1.3.0
   otel_logging: ^0.1.0-beta.1

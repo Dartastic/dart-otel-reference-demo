@@ -83,7 +83,12 @@ void main() {
 
       final span = spans.findSpanByName('open-meteo geocode');
       expect(span, isNotNull);
-      expect(span!.kind, SpanKind.client);
+      expect(
+        span!.kind,
+        SpanKind.internal,
+        reason:
+            'provider span is INTERNAL; the wrapped HTTP client owns the client span',
+      );
     });
 
     test('returns empty result when 2xx body has no results key', () async {
@@ -221,7 +226,12 @@ void main() {
 
       final span = spans.findSpanByName('open-meteo forecast');
       expect(span, isNotNull);
-      expect(span!.kind, SpanKind.client);
+      expect(
+        span!.kind,
+        SpanKind.internal,
+        reason:
+            'provider span is INTERNAL; the wrapped HTTP client owns the client span',
+      );
     });
 
     test(

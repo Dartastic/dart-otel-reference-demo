@@ -117,7 +117,7 @@ void main() {
       final body =
           jsonDecode(await response.readAsString()) as Map<String, dynamic>;
       expect(body['query'], 'Boston');
-      expect((body['matches'] as List), hasLength(1));
+      expect(body['matches'] as List, hasLength(1));
       expect(upstream.geocodeCallCount, 1);
     });
 
@@ -183,7 +183,7 @@ void main() {
   // ---------- Forecast ----------
 
   group('POST /v1/forecast', () {
-    Object _validBody({int days = 3}) => <String, dynamic>{
+    Object validBody({int days = 3}) => <String, dynamic>{
       'city': boston.toJson(),
       'forecastDays': days,
     };
@@ -191,7 +191,7 @@ void main() {
     test('200 with the forecast on a cache miss', () async {
       upstream.forecastImpl = forecastFor;
 
-      final response = await handler(post('/v1/forecast', _validBody(days: 2)));
+      final response = await handler(post('/v1/forecast', validBody(days: 2)));
 
       expect(response.statusCode, 200);
       final body =
@@ -199,7 +199,7 @@ void main() {
       // Sanity-check the structure — round-trip behaviour itself is
       // covered by weather_core's tests.
       expect(body['city'], isA<Map<String, dynamic>>());
-      expect((body['daily'] as List), hasLength(2));
+      expect(body['daily'] as List, hasLength(2));
       expect(upstream.forecastCallCount, 1);
     });
 
@@ -208,9 +208,9 @@ void main() {
       () async {
         upstream.forecastImpl = forecastFor;
 
-        await handler(post('/v1/forecast', _validBody(days: 3)));
-        await handler(post('/v1/forecast', _validBody(days: 3)));
-        await handler(post('/v1/forecast', _validBody(days: 3)));
+        await handler(post('/v1/forecast', validBody()));
+        await handler(post('/v1/forecast', validBody()));
+        await handler(post('/v1/forecast', validBody()));
 
         expect(upstream.forecastCallCount, 1);
       },
@@ -221,9 +221,9 @@ void main() {
       () async {
         upstream.forecastImpl = forecastFor;
 
-        await handler(post('/v1/forecast', _validBody(days: 3)));
-        await handler(post('/v1/forecast', _validBody(days: 5)));
-        await handler(post('/v1/forecast', _validBody(days: 3))); // hit
+        await handler(post('/v1/forecast', validBody()));
+        await handler(post('/v1/forecast', validBody(days: 5)));
+        await handler(post('/v1/forecast', validBody())); // hit
 
         expect(upstream.forecastCallCount, 2);
       },
@@ -232,12 +232,12 @@ void main() {
     test('annotates the server span with cache outcome', () async {
       upstream.forecastImpl = forecastFor;
 
-      await handler(post('/v1/forecast', _validBody()));
+      await handler(post('/v1/forecast', validBody()));
       var span = spans.findSpanByName('POST /v1/forecast')!;
       expect(span.attributes.getString('weather.cache.outcome'), 'miss');
 
       spans.clear();
-      await handler(post('/v1/forecast', _validBody()));
+      await handler(post('/v1/forecast', validBody()));
       span = spans.findSpanByName('POST /v1/forecast')!;
       expect(span.attributes.getString('weather.cache.outcome'), 'hit');
     });
@@ -257,7 +257,7 @@ void main() {
 
     test('400 on out-of-range forecastDays', () async {
       final response = await handler(
-        post('/v1/forecast', _validBody(days: 100)),
+        post('/v1/forecast', validBody(days: 100)),
       );
       expect(response.statusCode, 400);
     });
@@ -280,7 +280,7 @@ void main() {
         message: 'rate limited',
       );
 
-      final response = await handler(post('/v1/forecast', _validBody()));
+      final response = await handler(post('/v1/forecast', validBody()));
       expect(response.statusCode, 429);
     });
   });

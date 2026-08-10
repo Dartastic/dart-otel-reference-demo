@@ -5,9 +5,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:otel_logging/otel_logging.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
+import 'package:otel_logging/otel_logging.dart';
 import 'package:shelf/shelf.dart' show Handler;
 
 import 'admin_handler.dart';
@@ -35,13 +35,14 @@ class WeatherOtelHandle {
   /// `service.instance.id` on every emitted resource.
   final String serviceInstanceId;
 
-  /// Whether `OTEL_DEMO_MODE=true` was set when the bootstrap ran.
+  /// Whether `WEATHER_DEMO_MODE=true` was set when the bootstrap ran.
   /// When false, [demoAdminPipeline] returns null and no admin endpoint
   /// is exposed.
   final bool demoModeEnabled;
 
   final Logger _logger;
-  bool _shutdownStarted = false;
+  Future<void>? _shutdownFuture;
+  Future<void> Function()? _onBeforeShutdown;
   StreamSubscription<ProcessSignal>? _sigtermSub;
   StreamSubscription<ProcessSignal>? _sigintSub;
 
@@ -67,26 +68,39 @@ class WeatherOtelHandle {
   /// Useful in throughput demos and immediately before exit; production
   /// paths should rely on the batch processors' own scheduling.
   Future<void> forceFlush() async {
-    final provider = OTel.tracerProvider();
     try {
-      await provider.forceFlush();
+      await OTel.tracerProvider().forceFlush();
+      await OTel.meterProvider().forceFlush();
+      await OTel.loggerProvider().forceFlush();
     } on Object catch (e, st) {
       _logger.warning('forceFlush failed', e, st);
       rethrow;
     }
   }
 
-  /// Flushes pending telemetry and shuts down the SDK. Idempotent —
-  /// repeated calls return immediately without reattempting the work.
-  Future<void> shutdown() async {
-    if (_shutdownStarted) return;
-    _shutdownStarted = true;
+  /// Flushes pending telemetry and shuts down the SDK. Idempotent — the
+  /// first call runs the work; concurrent or later calls await the same
+  /// in-flight completion rather than returning early or re-running.
+  Future<void> shutdown() => _shutdownFuture ??= _doShutdown();
+
+  Future<void> _doShutdown() async {
     _logger.info('Shutting down OpenTelemetry SDK for $serviceName');
 
     await _sigtermSub?.cancel();
     await _sigintSub?.cancel();
     _sigtermSub = null;
     _sigintSub = null;
+
+    // Let the app drain first (e.g. close HTTP servers so in-flight
+    // request spans end) before anything is flushed.
+    final beforeShutdown = _onBeforeShutdown;
+    if (beforeShutdown != null) {
+      try {
+        await beforeShutdown();
+      } on Object catch (e, st) {
+        _logger.warning('onBeforeShutdown hook failed', e, st);
+      }
+    }
 
     // Uninstall the package:logging → OTel bridge BEFORE shutting the
     // SDK down, so records emitted during/after shutdown (including
@@ -110,7 +124,8 @@ class WeatherOtelHandle {
   ///
   /// Call this once near process startup, after `initializeOtel`. Skip
   /// it in tests; let the test runner own process lifetime.
-  void attachToProcessLifecycle() {
+  void attachToProcessLifecycle({Future<void> Function()? onBeforeShutdown}) {
+    _onBeforeShutdown = onBeforeShutdown;
     _sigtermSub ??= ProcessSignal.sigterm.watch().listen(_onSignal);
     _sigintSub ??= ProcessSignal.sigint.watch().listen(_onSignal);
   }
@@ -125,7 +140,7 @@ class WeatherOtelHandle {
   }
 
   /// Returns the shelf handler for the demo's admin endpoint, or null
-  /// when `OTEL_DEMO_MODE` was not `true` at bootstrap time.
+  /// when `WEATHER_DEMO_MODE` was not `true` at bootstrap time.
   ///
   /// When non-null, the returned handler responds to:
   ///   * `GET  /healthz`  — readiness probe, always 200.

@@ -26,7 +26,7 @@ invariant in mind.
 
 The demo is **shipped end-to-end** as of this writing. Every pattern,
 package, dashboard, and deployment target listed in
-[README.md § What's shipped](./README.md#whats-shipped) is in code today
+[README.md § What's Contained in this Reference](./README.md#whats-contained-in-this-reference) is in code today
 and exercised by tests. There is no "not yet shipped" backlog blocking
 the launch — remaining work is content (the blog post itself,
 screenshots, the trace-walkthrough narrative) rather than instrumentation
@@ -95,7 +95,7 @@ defect.
 The flush endpoint, the swarm script, and the bundled Grafana
 dashboards are demo affordances — they never run in a production
 deployment. The architectural commitment: they are sidecars,
-gated behind `OTEL_DEMO_MODE=true`, and the bootstrap helper that
+gated behind `WEATHER_DEMO_MODE=true`, and the bootstrap helper that
 exposes them short-circuits when the flag is unset. Production
 binaries do not exercise the code paths.
 

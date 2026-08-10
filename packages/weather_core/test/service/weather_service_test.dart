@@ -13,8 +13,8 @@ class FakeWeatherProvider implements WeatherProvider {
   GeocodeResult Function(String query, int maxResults)? geocodeImpl;
   WeatherForecast Function(City city, int forecastDays)? forecastImpl;
 
-  Object? geocodeError;
-  Object? forecastError;
+  Exception? geocodeError;
+  Exception? forecastError;
 
   @override
   String get name => 'fake';
@@ -77,7 +77,7 @@ void main() {
     countryCode: 'FR',
   );
 
-  WeatherForecast _forecastFor(City city, int days) {
+  WeatherForecast forecastFor(City city, int days) {
     return WeatherForecast(
       city: city,
       current: CurrentWeather(
@@ -114,7 +114,7 @@ void main() {
     test('returns the forecast on the happy path', () async {
       provider.geocodeImpl = (q, _) =>
           GeocodeResult(query: q, matches: const [boston]);
-      provider.forecastImpl = _forecastFor;
+      provider.forecastImpl = forecastFor;
 
       final forecast = await service.getForecast(
         cityName: 'Boston',
@@ -159,7 +159,7 @@ void main() {
     test('on ambiguous geocode, emits event and uses first match', () async {
       provider.geocodeImpl = (q, _) =>
           GeocodeResult(query: q, matches: const [boston, paris]);
-      provider.forecastImpl = _forecastFor;
+      provider.forecastImpl = forecastFor;
 
       final forecast = await service.getForecast(
         cityName: 'Toul',

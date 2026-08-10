@@ -2,8 +2,6 @@
 // Copyright 2026, Mindful Software LLC.
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
-    show TextMapGetter;
 import 'package:logging/logging.dart';
 import 'package:shelf/shelf.dart' hide Server;
 
@@ -85,6 +83,22 @@ Middleware otelMiddleware({
           'semantic conventions). Labels are deliberately low-cardinality '
           'so the series count stays bounded: only http.request.method, '
           'http.route, http.response.status_code, and url.scheme.',
+      boundaries: const [
+        0.005,
+        0.01,
+        0.025,
+        0.05,
+        0.075,
+        0.1,
+        0.25,
+        0.5,
+        0.75,
+        1,
+        2.5,
+        5,
+        7.5,
+        10,
+      ],
     );
     // Saturation proxy alongside the RED-style duration histogram.
     // We deliberately exclude `http.response.status_code` from the
@@ -134,32 +148,35 @@ Middleware otelMiddleware({
           'in seconds. Fires once per process. Used to graph cold-start '
           'cost distribution on the dashboard separately from the '
           'general-purpose http.server.request.duration histogram.',
+      boundaries: const [
+        0.005,
+        0.01,
+        0.025,
+        0.05,
+        0.075,
+        0.1,
+        0.25,
+        0.5,
+        0.75,
+        1,
+        2.5,
+        5,
+        7.5,
+        10,
+      ],
     );
 
     return (Request request) async {
       final tracer = OTel.tracerProvider().getTracer(tracerName);
 
-      // ── 1. Extract trace context and baggage from inbound headers.
-      // The SDK's W3CTraceContextPropagator and W3CBaggagePropagator
-      // don't expose const constructors — instances are stateless and
-      // cheap to construct, but cannot be stored as `static const`.
-      //
-      // Order matters: baggage first, then trace context. In
-      // dartastic_opentelemetry 1.1.0-beta the W3CBaggagePropagator's
-      // extract returns a fresh empty Context when the inbound request
-      // has no `baggage` header (instead of the input context unchanged),
-      // which would clobber any spanContext we extracted before it. The
-      // trace context propagator, by contrast, preserves the input
-      // context when traceparent is missing, so running it second is
-      // safe under either inbound combination.
+      // ── 1. Extract trace context and baggage from inbound headers via
+      //     the SDK's globally configured propagator (honors
+      //     OTEL_PROPAGATORS; the W3C tracecontext,baggage composite by
+      //     default). A single extract handles both — no hand-rolled
+      //     ordering needed.
       final getter = _RequestHeaderGetter(request.headers);
-      var inboundContext = W3CBaggagePropagator().extract(
+      final inboundContext = OTelAPI.textMapPropagator.extract(
         OTel.context(),
-        request.headers,
-        getter,
-      );
-      inboundContext = W3CTraceContextPropagator().extract(
-        inboundContext,
         request.headers,
         getter,
       );
@@ -230,24 +247,39 @@ Middleware otelMiddleware({
           try {
             final response = await innerHandler(request);
             observedStatusCode = response.statusCode;
-            span
-              ..addAttributes(
-                OTel.attributesOf<Http>({
-                  .httpResponseStatusCode: response.statusCode,
-                }),
-              )
-              ..setStatus(_statusForCode(response.statusCode));
+            span.addAttributes(
+              OTel.attributesOf<Http>({
+                .httpResponseStatusCode: response.statusCode,
+              }),
+            );
+            // Server spans: 5xx is Error; 1xx-4xx stay Unset (a 4xx is the
+            // caller's bad request, not the server's fault). error.type is
+            // conditionally required by HTTP semconv on error.
+            if (response.statusCode >= 500) {
+              span
+                ..setStatus(.Error)
+                ..addAttributes(
+                  OTel.attributesFromSemanticMap({
+                    ErrorAttributes.errorType: '${response.statusCode}',
+                  }),
+                );
+            }
             return response;
           } on HijackException {
-            // Handler took over the underlying socket; we can't observe
-            // the response. Treat this as a successful exit.
-            span.setStatus(.Ok);
+            // Handler took over the underlying socket; we can't observe the
+            // response. Leave the span status Unset (a successful upgrade is
+            // not an error) and rethrow.
             rethrow;
           } catch (e, st) {
             log.warning('Handler threw an exception', e, st);
             span
               ..recordException(e, stackTrace: st)
-              ..setStatus(.Error, e.toString());
+              ..setStatus(.Error, e.toString())
+              ..addAttributes(
+                OTel.attributesFromSemanticMap({
+                  ErrorAttributes.errorType: e.runtimeType.toString(),
+                }),
+              );
             rethrow;
           }
         });
@@ -412,15 +444,7 @@ Attributes _activeRequestAttributes(Request request, {required String? route}) {
   });
 }
 
-/// Maps an HTTP status code to a `SpanStatusCode` per the OTel HTTP
-/// semantic conventions: 4xx is Unset (callers' bad requests are not
-/// the server's fault), 5xx is Error, otherwise Ok.
-SpanStatusCode _statusForCode(int statusCode) {
-  if (statusCode >= 500) return .Error;
-  return .Ok;
-}
-
-/// Adapter that lets [W3CTraceContextPropagator] read from a
+/// Adapter that lets a [TextMapPropagator] read from a
 /// case-insensitive HTTP header map.
 class _RequestHeaderGetter implements TextMapGetter<String> {
   _RequestHeaderGetter(this._headers);

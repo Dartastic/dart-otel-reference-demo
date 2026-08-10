@@ -56,6 +56,27 @@ fi
 
 step() { printf '\n==> %s\n' "$1"; }
 
+# Workspace members from the root pubspec's `workspace:` list. Splitting on
+# Flutter membership lets `dart test`/`dart format` handle the pure-Dart
+# members while Flutter apps go through `flutter test`. Adding a member to
+# the workspace list is all that's needed — no edits here. (apps/dinger is
+# deliberately NOT a workspace member — it carries path deps outside the
+# repo — so it is never swept.)
+DART_MEMBERS=()
+FLUTTER_MEMBERS=()
+while IFS= read -r member; do
+  [ -f "$ROOT_DIR/$member/pubspec.yaml" ] || continue
+  if grep -qE '^[[:space:]]*sdk:[[:space:]]*flutter' "$ROOT_DIR/$member/pubspec.yaml"; then
+    FLUTTER_MEMBERS+=("$member")
+  else
+    DART_MEMBERS+=("$member")
+  fi
+done < <(
+  sed -n '/^workspace:/,/^[^[:space:]#-]/{/^[[:space:]]*-[[:space:]]/p;}' \
+      "$ROOT_DIR/pubspec.yaml" \
+    | sed -E 's/^[[:space:]]*-[[:space:]]*//'
+)
+
 step "dart pub get (workspace)"
 dart pub get
 
@@ -67,9 +88,10 @@ if [ "$DO_FORMAT" -eq 1 ]; then
   # Ignore generated files and the .dart_tool directory. `dart format`
   # respects analysis_options.yaml's exclude rules already, so this
   # mostly just constrains the search root.
-  dart format --set-exit-if-changed --output=none packages services apps 2>/dev/null || {
+  dart format --set-exit-if-changed --output=none \
+      "${DART_MEMBERS[@]}" "${FLUTTER_MEMBERS[@]}" || {
     echo
-    echo "error: code is not formatted. Run 'dart format packages services apps' to fix." >&2
+    echo "error: code is not formatted. Run 'dart format .' to fix." >&2
     exit 1
   }
 else
@@ -77,12 +99,15 @@ else
 fi
 
 if [ "$DO_TEST" -eq 1 ]; then
-  # `dart test` from the workspace root looks for ./test/ which doesn't
-  # exist — adding test/ subdirectories explicitly runs every package's
-  # test suite in one process. Adding a new package needs no script
-  # changes as long as it lives under packages/, services/, or apps/.
-  step "dart test (workspace)"
-  dart test packages services apps
+  # Pure-Dart members run under the VM test runner in one process; Flutter
+  # members need `flutter test` (the VM runner can't load flutter_test).
+  step "dart test (Dart members)"
+  dart test "${DART_MEMBERS[@]}"
+  for member in "${FLUTTER_MEMBERS[@]}"; do
+    [ -d "$ROOT_DIR/$member/test" ] || continue
+    step "flutter test ($member)"
+    ( cd "$ROOT_DIR/$member" && flutter test )
+  done
 else
   echo "(skipping tests)"
 fi

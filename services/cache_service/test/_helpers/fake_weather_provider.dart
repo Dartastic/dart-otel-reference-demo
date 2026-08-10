@@ -10,8 +10,8 @@ class FakeWeatherProvider implements WeatherProvider {
   GeocodeResult Function(String query, int maxResults)? geocodeImpl;
   WeatherForecast Function(City city, int forecastDays)? forecastImpl;
 
-  Object? geocodeError;
-  Object? forecastError;
+  Exception? geocodeError;
+  Exception? forecastError;
 
   int geocodeCallCount = 0;
   int forecastCallCount = 0;

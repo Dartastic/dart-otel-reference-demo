@@ -219,17 +219,17 @@ class WeatherClient implements WeatherProvider {
     required int statusCode,
     required String responseBody,
   }) {
-    final WeatherProviderErrorKind kind = switch (statusCode) {
-      400 => .badRequest,
-      404 => .notFound,
-      429 => .rateLimit,
-      503 => .network,
-      >= 500 => .upstream,
-      _ => .unknown,
+    final kind = switch (statusCode) {
+      400 => WeatherProviderErrorKind.badRequest,
+      404 => WeatherProviderErrorKind.notFound,
+      429 => WeatherProviderErrorKind.rateLimit,
+      503 => WeatherProviderErrorKind.network,
+      >= 500 => WeatherProviderErrorKind.upstream,
+      _ => WeatherProviderErrorKind.unknown,
     };
     // Try to extract the upstream's error message from a JSON body so
     // it's visible in the caller's logs / span events.
-    String message = 'HTTP $statusCode from $operation';
+    var message = 'HTTP $statusCode from $operation';
     try {
       final decoded = jsonDecode(responseBody);
       if (decoded is Map<String, dynamic>) {

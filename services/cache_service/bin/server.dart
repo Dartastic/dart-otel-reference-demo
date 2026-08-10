@@ -12,12 +12,12 @@
 //
 //   PORT             — public service port (default 8090)
 //   ADMIN_PORT       — admin port (default 8091), only bound when
-//                      OTEL_DEMO_MODE=true
+//                      WEATHER_DEMO_MODE=true
 //   ADMIN_HOST       — interface to bind the admin port to (default
 //                      127.0.0.1). Override to 0.0.0.0 when running
 //                      inside a container so Docker port mapping can
 //                      reach the port.
-//   OTEL_DEMO_MODE   — when 'true', enables the demo admin endpoint
+//   WEATHER_DEMO_MODE   — when 'true', enables the demo admin endpoint
 //   FORECAST_TTL_SECONDS — forecast cache TTL in seconds (default 300)
 //   GEOCODE_TTL_SECONDS  — geocode cache TTL in seconds (default 86400)
 //   OTEL_*           — standard OTel env vars. See weather_otel README.
@@ -48,7 +48,6 @@ Future<void> _run() async {
     serviceName: _serviceName,
     serviceVersion: _serviceVersion,
   );
-  otel.attachToProcessLifecycle();
 
   final outboundClient = InstrumentedHttpClient(
     inner: http.Client(),
@@ -88,17 +87,19 @@ Future<void> _run() async {
     log.info(
       'cache_service admin endpoint listening on '
       'http://${adminServer.address.host}:${adminServer.port} '
-      '(OTEL_DEMO_MODE=true)',
+      '(WEATHER_DEMO_MODE=true)',
     );
   }
 
-  await _blockForever();
+  otel.attachToProcessLifecycle(
+    onBeforeShutdown: () async {
+      await publicServer.close();
+      await adminServer?.close();
+      outboundClient.close();
+    },
+  );
 
-  // Unreachable — the signal handler exits the process — but kept
-  // visible so static analysis sees the close calls.
-  await publicServer.close();
-  await adminServer?.close();
-  outboundClient.close();
+  await _blockForever();
 }
 
 void _configureLogging() {
@@ -108,8 +109,9 @@ void _configureLogging() {
     final tag = '[${record.level.name}] ${record.loggerName}';
     stdout.writeln('$time $tag: ${record.message}');
     if (record.error != null) stdout.writeln('  error: ${record.error}');
-    if (record.stackTrace != null)
+    if (record.stackTrace != null) {
       stdout.writeln('  stack:\n${record.stackTrace}');
+    }
   });
 }
 

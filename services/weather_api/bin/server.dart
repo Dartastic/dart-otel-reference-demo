@@ -11,12 +11,12 @@
 //
 //   PORT                  — public service port (default 8080)
 //   ADMIN_PORT            — admin port (default 8081), only bound when
-//                           OTEL_DEMO_MODE=true
+//                           WEATHER_DEMO_MODE=true
 //   ADMIN_HOST            — interface to bind the admin port to
 //                           (default 127.0.0.1). Override to 0.0.0.0
 //                           when running inside a container so Docker
 //                           port mapping can reach the port.
-//   OTEL_DEMO_MODE        — when 'true', enables the demo admin endpoint
+//   WEATHER_DEMO_MODE        — when 'true', enables the demo admin endpoint
 //   WEATHER_UPSTREAM_URL  — base URL of the v1 upstream service, default
 //                           http://localhost:8090 (cache_service's
 //                           default). The upstream MUST speak the
@@ -53,7 +53,6 @@ Future<void> _run() async {
     serviceName: _serviceName,
     serviceVersion: _serviceVersion,
   );
-  otel.attachToProcessLifecycle();
 
   // Outbound HTTP client. Wrapping the standard client in
   // InstrumentedHttpClient adds a `SpanKind.client` span per outbound
@@ -97,7 +96,7 @@ Future<void> _run() async {
     'weather_api listening on http://${publicServer.address.host}:${publicServer.port}',
   );
 
-  // Demo admin server. Only binds when OTEL_DEMO_MODE=true; production
+  // Demo admin server. Only binds when WEATHER_DEMO_MODE=true; production
   // deployments leave the port closed.
   HttpServer? adminServer;
   final adminHandler = otel.demoAdminPipeline();
@@ -108,20 +107,22 @@ Future<void> _run() async {
     log.info(
       'weather_api admin endpoint listening on '
       'http://${adminServer.address.host}:${adminServer.port} '
-      '(OTEL_DEMO_MODE=true)',
+      '(WEATHER_DEMO_MODE=true)',
     );
   }
 
-  // Block forever. SIGTERM / SIGINT handling is owned by
-  // WeatherOtelHandle.attachToProcessLifecycle, which flushes spans
-  // before exit.
-  await _blockForever();
+  // SIGTERM / SIGINT: drain the HTTP servers (so in-flight request spans
+  // end) before the SDK flushes, then exit. Cloud Run/Functions deliver
+  // SIGTERM ~10s before the kill, which is enough for the batch flush.
+  otel.attachToProcessLifecycle(
+    onBeforeShutdown: () async {
+      await publicServer.close();
+      await adminServer?.close();
+      outboundClient.close();
+    },
+  );
 
-  // Unreachable in practice — the signal handler exits the process —
-  // but kept so static analysis sees the close calls.
-  await publicServer.close();
-  await adminServer?.close();
-  outboundClient.close();
+  await _blockForever();
 }
 
 void _configureLogging() {

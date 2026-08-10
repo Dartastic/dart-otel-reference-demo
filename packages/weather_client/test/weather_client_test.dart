@@ -11,7 +11,7 @@ import 'package:weather_client/weather_client.dart';
 import 'package:weather_core/weather_core.dart';
 
 void main() {
-  Uri baseUrl = Uri.parse('http://cache-service:8090');
+  var baseUrl = Uri.parse('http://cache-service:8090');
 
   // ---------- Test fixtures ----------
 
@@ -24,7 +24,7 @@ void main() {
     countryCode: 'FR',
   );
 
-  WeatherForecast _sampleForecast(City city, int days) => WeatherForecast(
+  WeatherForecast sampleForecast(City city, int days) => WeatherForecast(
     city: city,
     current: CurrentWeather(
       observedAt: DateTime.utc(2026, 5, 9, 12),
@@ -132,7 +132,7 @@ void main() {
 
   group('WeatherClient.getForecast', () {
     test('POSTs JSON body and parses the WeatherForecast response', () async {
-      final expected = _sampleForecast(boston, 2);
+      final expected = sampleForecast(boston, 2);
       final mock = MockClient((request) async {
         expect(request.method, 'POST');
         expect(request.url.path, '/v1/forecast');
@@ -180,7 +180,7 @@ void main() {
   });
 
   group('HTTP status mapping', () {
-    Future<void> _assertStatusMapsToKind(
+    Future<void> assertStatusMapsToKind(
       int statusCode,
       WeatherProviderErrorKind kind,
     ) async {
@@ -207,31 +207,31 @@ void main() {
 
     test(
       '400 -> badRequest',
-      () => _assertStatusMapsToKind(400, WeatherProviderErrorKind.badRequest),
+      () => assertStatusMapsToKind(400, WeatherProviderErrorKind.badRequest),
     );
     test(
       '404 -> notFound',
-      () => _assertStatusMapsToKind(404, WeatherProviderErrorKind.notFound),
+      () => assertStatusMapsToKind(404, WeatherProviderErrorKind.notFound),
     );
     test(
       '429 -> rateLimit',
-      () => _assertStatusMapsToKind(429, WeatherProviderErrorKind.rateLimit),
+      () => assertStatusMapsToKind(429, WeatherProviderErrorKind.rateLimit),
     );
     test(
       '500 -> upstream',
-      () => _assertStatusMapsToKind(500, WeatherProviderErrorKind.upstream),
+      () => assertStatusMapsToKind(500, WeatherProviderErrorKind.upstream),
     );
     test(
       '502 -> upstream',
-      () => _assertStatusMapsToKind(502, WeatherProviderErrorKind.upstream),
+      () => assertStatusMapsToKind(502, WeatherProviderErrorKind.upstream),
     );
     test(
       '503 -> network',
-      () => _assertStatusMapsToKind(503, WeatherProviderErrorKind.network),
+      () => assertStatusMapsToKind(503, WeatherProviderErrorKind.network),
     );
     test(
       '418 -> unknown',
-      () => _assertStatusMapsToKind(418, WeatherProviderErrorKind.unknown),
+      () => assertStatusMapsToKind(418, WeatherProviderErrorKind.unknown),
     );
   });
 

@@ -5,14 +5,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-// The SDK re-exports MOST of the API surface (Tracer, Span, Context,
-// Attributes, semantic enums) — but NOT the abstract instrument
-// interfaces (APICounter, APIHistogram), which is why we depend on
-// the API package directly to name them. Same constraint
-// `weather_service.dart` and `cache_service`'s router work around.
+// One import: the SDK barrel re-exports the full API surface,
+// including the instrument-interface types (APICounter, APIHistogram).
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
-    show APICounter;
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
@@ -106,8 +101,8 @@ class OpenMeteoProvider implements WeatherProvider {
   ///                  (only present when outcome=error)
   /// Upper bound: ~80 series — safe under any backend's per-metric
   /// series cap.
-  static late final APICounter<int> _upstreamRequests =
-      OTel.meter('weather_core').createCounter<int>(
+  static final APICounter<int> _upstreamRequests = OTel.meter('weather_core')
+      .createCounter<int>(
         name: 'weather.upstream.requests',
         unit: '1',
         description:
@@ -162,27 +157,31 @@ class OpenMeteoProvider implements WeatherProvider {
       },
     );
 
-    final span = OTel.tracer().startSpan(
-      'open-meteo geocode',
-      kind: SpanKind.client,
-      attributes: OTel.attributesFromSemanticMap({
-        ...<Http, Object>{.httpRequestMethod: 'GET'},
-        Url.urlFull: uri.toString(),
-        Server.serverAddress: uri.host,
-        ...<WeatherSemantics, Object>{
-          .provider: name,
-          .operation: 'geocode',
-          // Free-text query is high-cardinality — span-only.
-          .geocodeQuery: query,
-          .geocodeMaxResults: maxResults,
-        },
-      }),
-    );
+    final span = OTel.tracerProvider()
+        .getTracer('weather_core')
+        .startSpan(
+          'open-meteo geocode',
+          // INTERNAL: the wrapped InstrumentedHttpClient emits the HTTP client
+          // span (url.full, http.request.method, server.*) for this request —
+          // this span carries only the weather.* domain attributes.
+          attributes: OTel.attributesFromSemanticMap({
+            ...<WeatherSemantics, Object>{
+              .provider: name,
+              .operation: 'geocode',
+              // Free-text query is high-cardinality — span-only.
+              .geocodeQuery: query,
+              .geocodeMaxResults: maxResults,
+            },
+          }),
+        );
 
     var outcome = 'success';
     String? errorKind;
     try {
-      return await OTel.tracer().withSpanAsync(span, () async {
+      // Activate the span via the Zone primitive (what withSpanAsync
+      // wraps) so we own the exception path and set the status from the
+      // domain exception's clean `.message` rather than its toString().
+      return await Context.current.withSpan(span).run(() async {
         final body = await _get(uri, span: span, operation: 'geocode');
         final decoded = _decodeJson(body);
 
@@ -190,16 +189,14 @@ class OpenMeteoProvider implements WeatherProvider {
         if (rawResults is! List) {
           // Open-Meteo represents "no matches" as a 200 with no `results`
           // key. This is not an exceptional condition.
-          span
-            ..addEvent(
-              OTel.spanEventNow(
-                'geocode.no_matches',
-                OTel.attributesFromMap(<String, Object>{
-                  WeatherSemantics.geocodeMatchCount.key: 0,
-                }),
-              ),
-            )
-            ..setStatus(.Ok);
+          span.addEvent(
+            OTel.spanEventNow(
+              'geocode.no_matches',
+              OTel.attributesFromMap(<String, Object>{
+                WeatherSemantics.geocodeMatchCount.key: 0,
+              }),
+            ),
+          );
           return GeocodeResult(query: query, matches: const []);
         }
 
@@ -223,14 +220,12 @@ class OpenMeteoProvider implements WeatherProvider {
           }
         }
 
-        span
-          ..addAttributes(
-            OTel.attributesFromMap(<String, Object>{
-              WeatherSemantics.geocodeMatchCount.key: cities.length,
-              WeatherSemantics.geocodeAmbiguous.key: cities.length > 1,
-            }),
-          )
-          ..setStatus(.Ok);
+        span.addAttributes(
+          OTel.attributesFromMap(<String, Object>{
+            WeatherSemantics.geocodeMatchCount.key: cities.length,
+            WeatherSemantics.geocodeAmbiguous.key: cities.length > 1,
+          }),
+        );
 
         return GeocodeResult(
           query: query,
@@ -293,30 +288,32 @@ class OpenMeteoProvider implements WeatherProvider {
       },
     );
 
-    final span = OTel.tracer().startSpan(
-      'open-meteo forecast',
-      kind: SpanKind.client,
-      attributes: OTel.attributesFromSemanticMap({
-        ...<Http, Object>{.httpRequestMethod: 'GET'},
-        Url.urlFull: uri.toString(),
-        Server.serverAddress: uri.host,
-        ...<WeatherSemantics, Object>{
-          .provider: name,
-          .operation: 'forecast',
-          .cityId: city.id,
-          // City name is high-cardinality. Span attribute only.
-          .cityName: city.name,
-          // Country code is bounded (~250 values) — both span and metric safe.
-          .cityCountryCode: city.countryCode,
-          .forecastDays: forecastDays,
-        },
-      }),
-    );
+    final span = OTel.tracerProvider()
+        .getTracer('weather_core')
+        .startSpan(
+          'open-meteo forecast',
+          // INTERNAL: see the geocode span above.
+          attributes: OTel.attributesFromSemanticMap({
+            ...<WeatherSemantics, Object>{
+              .provider: name,
+              .operation: 'forecast',
+              .cityId: city.id,
+              // City name is high-cardinality. Span attribute only.
+              .cityName: city.name,
+              // Country code is bounded (~250 values) — both span and metric safe.
+              .cityCountryCode: city.countryCode,
+              .forecastDays: forecastDays,
+            },
+          }),
+        );
 
     var outcome = 'success';
     String? errorKind;
     try {
-      return await OTel.tracer().withSpanAsync(span, () async {
+      // Activate the span via the Zone primitive (what withSpanAsync
+      // wraps) so we own the exception path and set the status from the
+      // domain exception's clean `.message` rather than its toString().
+      return await Context.current.withSpan(span).run(() async {
         final body = await _get(uri, span: span, operation: 'forecast');
         final decoded = _decodeJson(body);
         final fetchedAt = DateTime.now().toUtc();
@@ -327,17 +324,15 @@ class OpenMeteoProvider implements WeatherProvider {
             json: decoded,
             fetchedAt: fetchedAt,
           );
-          span
-            ..addAttributes(
-              OTel.attributesFromMap(<String, Object>{
-                WeatherSemantics.currentWeatherCode.key:
-                    forecast.current.weatherCode.code,
-                WeatherSemantics.currentSeverity.key:
-                    forecast.current.weatherCode.severity.name,
-                WeatherSemantics.currentIsDay.key: forecast.current.isDay,
-              }),
-            )
-            ..setStatus(.Ok);
+          span.addAttributes(
+            OTel.attributesFromMap(<String, Object>{
+              WeatherSemantics.currentWeatherCode.key:
+                  forecast.current.weatherCode.code,
+              WeatherSemantics.currentSeverity.key:
+                  forecast.current.weatherCode.severity.name,
+              WeatherSemantics.currentIsDay.key: forecast.current.isDay,
+            }),
+          );
           return forecast;
         } on FormatException catch (e, st) {
           throw WeatherProviderException(

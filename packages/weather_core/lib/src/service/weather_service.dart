@@ -3,16 +3,10 @@
 
 import 'dart:async';
 
-// SDK re-exports MOST of the API surface (Tracer, Span, Context,
-// Attributes, semantic enums) via a `show` clause. The
-// instrument-interface types `APICounter` and `APIHistogram` are NOT
-// in that show clause — `meter.createCounter`/`createHistogram`
-// return them as their statically-typed return value, so we import
-// them from the API package directly to name them in field
-// declarations and getters.
+// The SDK barrel re-exports the full API surface — semantic enums,
+// Context, Attributes, Span, Tracer, and the instrument-interface
+// types (APICounter, APIHistogram) — so one import covers everything.
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
-import 'package:dartastic_opentelemetry_api/dartastic_opentelemetry_api.dart'
-    show APICounter, APIHistogram;
 import 'package:logging/logging.dart';
 
 import '../instrumentation/weather_semantics.dart';
@@ -55,7 +49,7 @@ class WeatherService {
     required int forecastDays,
   }) async {
     final stopwatch = Stopwatch()..start();
-    final tracer = OTel.tracer();
+    final tracer = OTel.tracerProvider().getTracer('weather_core');
 
     final span = tracer.startSpan(
       'WeatherService.getForecast',
@@ -71,6 +65,14 @@ class WeatherService {
     String? errorKind;
     String? countryCode;
 
+    // This orchestration span uses `withSpanAsync` — the convenience
+    // wrapper — deliberately. Contrast with OpenMeteoProvider, which
+    // activates the span manually (`Context.current.withSpan(span).run`)
+    // to set the status from a domain exception's clean `.message`. Here
+    // there is no bespoke message to preserve: on failure the provider's
+    // WeatherProviderException.toString() (kind + provider + message) is
+    // exactly the status we want, so we let withSpanAsync record it and
+    // set Error automatically, and the catches only annotate metrics.
     try {
       return await tracer.withSpanAsync(span, () async {
         final geocoded = await _provider.geocode(cityName);
@@ -123,22 +125,18 @@ class WeatherService {
           forecastDays: forecastDays,
         );
 
-        span.setStatus(.Ok);
         return forecast;
       });
-    } on WeatherProviderException catch (e, st) {
+    } on WeatherProviderException catch (e) {
+      // withSpanAsync recorded the exception and set the span status from
+      // its toString(); we only annotate the failure metrics.
       outcome = 'error';
       errorKind = e.kind.name;
-      span
-        ..recordException(e, stackTrace: st)
-        ..setStatus(.Error, e.message);
       rethrow;
-    } catch (e, st) {
+    } catch (e) {
+      // Same — span exception handling is owned by withSpanAsync.
       outcome = 'error';
       errorKind = WeatherProviderErrorKind.unknown.name;
-      span
-        ..recordException(e, stackTrace: st)
-        ..setStatus(.Error, e.toString());
       rethrow;
     } finally {
       stopwatch.stop();
@@ -162,7 +160,7 @@ class WeatherService {
       });
       _instruments.requests.add(1, metricAttributes);
       _instruments.duration.record(
-        stopwatch.elapsedMilliseconds,
+        stopwatch.elapsedMicroseconds / Duration.microsecondsPerSecond,
         metricAttributes,
       );
     }
@@ -192,29 +190,31 @@ class _Instruments {
             'Count of weather service operations by provider, '
             'operation, outcome, error kind, and country.',
       )
-      .._duration = meter.createHistogram<int>(
+      .._duration = meter.createHistogram<double>(
         name: 'weather.request.duration',
-        unit: 'ms',
-        description: 'Wall-clock duration of weather service operations.',
+        unit: 's',
+        description:
+            'Wall-clock duration of weather service operations, in '
+            'seconds (semconv prefers seconds for new duration instruments).',
         boundaries: const [
+          0.005,
+          0.01,
+          0.025,
+          0.05,
+          0.1,
+          0.25,
+          0.5,
+          1,
+          2.5,
           5,
           10,
-          25,
-          50,
-          100,
-          250,
-          500,
-          1000,
-          2500,
-          5000,
-          10000,
         ],
       );
   }
 
   late final APICounter<int> _requests;
-  late final APIHistogram<int> _duration;
+  late final APIHistogram<double> _duration;
 
   APICounter<int> get requests => _requests;
-  APIHistogram<int> get duration => _duration;
+  APIHistogram<double> get duration => _duration;
 }

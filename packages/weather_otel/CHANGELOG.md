@@ -8,4 +8,4 @@ All notable changes to this package are documented here. Format based on
 ### Added
 - Initial package: `initializeOtel` bootstrap, `WeatherOtelHandle` lifecycle,
   SIGTERM / SIGINT graceful-shutdown handlers, and the optional
-  `OTEL_DEMO_MODE` admin endpoint for forced flush.
+  `WEATHER_DEMO_MODE` admin endpoint for forced flush.

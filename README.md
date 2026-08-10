@@ -38,10 +38,12 @@ a client application (Flutter, CLI, web page) to the backend, through the servic
 that handle the request and back to the client.  Each step adding information about
 how the request was handled.  
 
-The system shows a contrived weather service intended to mimic a simple but real service
-with CLI and Flutter clients.  The API service calls two internal Dart services and an external service, making a trace that's 4 hops deep. The client sends the request,
-`WeatherService.getForecast` checks a `cache-service` and if the geocode is not in the cache,
-it calls a `weather-api` that fetches the weather for a location through an external service.
+The system is a contrived weather service that mimics a simple but real
+service with CLI and Flutter clients. A request flows client → `weather-api`
+→ `cache-service` → the external Open-Meteo API, producing a trace four hops
+deep (five when the traced nginx edge fronts `weather-api` in the local
+stack). `weather-api` geocodes and fetches the forecast through
+`cache-service`, which serves from cache or calls Open-Meteo on a miss.
 
 The demo features production-grade best practices:
 - A `weather_client` SDK that implements `WeatherProvider` over HTTP —
@@ -137,9 +139,8 @@ is described in [deploy/local/README.md](./deploy/local/README.md).
 ```
 
 A single trace identifier flows from the CLI through both internal services
-and into the external Open-Meteo call. Baggage entries (`cli.run_id`,
-`cli.session_id`, `request_id`, `tenant`) flow with it and become searchable
-attributes on every span via the `BaggageSpanProcessor`.
+and into the external Open-Meteo call. Baggage entries (`cli.run_id`, `cli.session_id`) flow with it and become
+searchable attributes on every span via the `BaggageSpanProcessor`.
 
 ## Package layout
 
@@ -248,7 +249,7 @@ target you can read or copy from this repo.
   enum so typos in any of the three are compile errors:
 
   ```dart
-  const httpServerDuration = HttpMetric.serverRequestDuration;
+  const httpServerDuration = HttpMetric.httpServerRequestDuration;
   meter.createHistogram<double>(
     name: httpServerDuration.name,   // 'http.server.request.duration'
     unit: httpServerDuration.unit,   // 's'
@@ -256,15 +257,15 @@ target you can read or copy from this repo.
   );
   ```
 
-  Attribute maps are built with API beta.6's typed-enum + dot-
-  shorthand pattern:
+  Attribute maps are built with the typed-enum + dot-shorthand
+  pattern:
 
   ```dart
   OTel.attributesFromSemanticMap({
     ...<Http, Object>{
-      .requestMethod:      request.method,
+      .httpRequestMethod:      request.method,
       .httpRoute:          route ?? 'unknown',
-      .responseStatusCode: statusCode,
+      .httpResponseStatusCode: statusCode,
     },
     Url.urlScheme: request.requestedUri.scheme,
   });
@@ -272,9 +273,9 @@ target you can read or copy from this repo.
 
   Inner `<Http, Object>` and `<Url, Object>` spreads carry the
   enum-prefix as the map's static type, which is what makes the
-  `.requestMethod` shorthand resolve. Different enum families mix
+  `.httpRequestMethod` shorthand resolve. Different enum families mix
   in the same outer literal. For a single-family map, prefer
-  `OTel.attributesOf<Http>({.responseStatusCode: 200, ...})` —
+  `OTel.attributesOf<Http>({.httpResponseStatusCode: 200, ...})` —
   same shorthand, no spread.
 - **In-flight requests gauge** (`http.server.active_requests`) in
   `weather_http_kit`'s shelf middleware. UpDownCounter
@@ -318,12 +319,12 @@ target you can read or copy from this repo.
 
 ### FaaS / Cloud Functions support
 
-- **`faas.coldstart` and `faas.execution` per-invocation
+- **`faas.coldstart` and `faas.invocation_id` per-invocation
   attributes** on every server span emitted by `weather_http_kit`'s
   `otelMiddleware`. `faas.coldstart` is a boolean — `true` on the
   first request a process handles, `false` thereafter — set via a
   process-global latch that flips on first observation.
-  `faas.execution` is read from the `Function-Execution-Id`
+  `faas.invocation_id` is read from the `Function-Execution-Id`
   inbound header (Cloud Functions Gen 2 sets this on every
   invocation) and forwarded as-is so trace data correlates with
   the platform's own logs and metrics. Both are span attributes
@@ -351,12 +352,10 @@ target you can read or copy from this repo.
   with the active span's trace_id and span_id attached, while
   the application's own stdout listener keeps printing locally
   (additive, not a replacement). Each `Logger` becomes its own
-  OTel instrumentation scope by name. The demo ships its own
-  ~40-line bridge in `package_logging_bridge.dart` — readable,
-  enough for the demo. A production-grade `package:logging`
-  bridge ships in `dartastic_opentelemetry_logging` as part of
-  Dartastic.io Pro, alongside other higher-quality telemetry
-  packages — drop it in instead when production polish matters.
+  OTel instrumentation scope by name. The bridge is the published
+  [`otel_logging`](https://pub.dev/packages/otel_logging) package —
+  `PackageLoggingBridge.install()` at startup, `uninstall()` before
+  SDK shutdown — so any app can drop in the same one-liner.
 
 ### Backend selection
 
@@ -382,7 +381,7 @@ target you can read or copy from this repo.
 - **Swarm script** (`load/run_swarm.sh`): N parallel CLI
   invocations, post-run flush via the demo admin endpoints
   (`POST /flush` on loopback-bound 8081 / 8091, only when
-  `OTEL_DEMO_MODE=true`).
+  `WEATHER_DEMO_MODE=true`).
 - **Bundled Grafana dashboard** in `dashboards/grafana/`,
   auto-loaded into the local stack's Grafana container.
 
@@ -396,8 +395,8 @@ target you can read or copy from this repo.
   in debug builds, protobuf in release builds — selected via
   `kDebugMode`); a manually-started root span around the user's
   tap; and `InstrumentedHttpClient` for trace-context propagation
-  on every outbound request. Demonstrates that SDK 1.1.0-beta.3 + API
-  1.0.0-beta.5 work in dart2js AND dart2wasm — five-level trace
+  on every outbound request. Demonstrates that SDK 1.1.0-beta.11 + API
+  1.0.0-rc.1 work in dart2js AND dart2wasm — five-level trace
   tree from the tap through to Open-Meteo, with payloads readable
   in DevTools. **Sub-millisecond span timing** on web comes for
   free: the API's `WebTimeProvider` is selected at compile time
@@ -473,8 +472,7 @@ HTTP client; reused by every service and the CLI.
 **Baggage.** W3C Baggage propagation alongside trace context. The
 bootstrap registers a `BaggageSpanProcessor` so baggage entries become
 span attributes automatically — searchable in any backend without
-manual enrichment. Demo entries: `cli.run_id`, `cli.session_id`,
-`request_id`, `tenant`.
+manual enrichment. Demo entries: `cli.run_id`, `cli.session_id`.
 
 **Sampling.** Default is `ParentBasedSampler(TraceIdRatioSampler(arg))`
 so upstream sampling decisions are honored. The demo ships at 100%
@@ -554,7 +552,7 @@ tool/coverage.sh --html
 ```
 
 `tool/run.sh` forwards the standard `OTEL_*` environment variables and
-each service's own config (`PORT`, `ADMIN_PORT`, `OTEL_DEMO_MODE`) from
+each service's own config (`PORT`, `ADMIN_PORT`, `WEATHER_DEMO_MODE`) from
 the calling shell — see each service's README for the accepted set.
 For the canonical local-stack invocation:
 
@@ -636,7 +634,7 @@ class InMemorySpanExporter implements SpanExporter {
   @override Future<void> shutdown() async {}
 }
 
-Future<InMemorySpanExporter> initializeOtelForTest() async {
+Future<InMemorySpanExporter> maybeInitializeOtelForTest() async {
   final exporter = InMemorySpanExporter();
   await OTel.initialize(
     serviceName: 'test',
@@ -690,7 +688,7 @@ These are demo-time conveniences. They never run in a production deployment.
 
 - **Admin `POST /flush` endpoint** on a loopback-bound port (8081 for
   weather_api, 8091 for cache_service), exposed by
-  `weather_otel.demoAdminPipeline()` only when `OTEL_DEMO_MODE=true`.
+  `weather_otel.demoAdminPipeline()` only when `WEATHER_DEMO_MODE=true`.
   The bootstrap helper short-circuits when the flag is unset —
   production binaries do not exercise the code path. Driven by `curl`
   from the swarm script, or directly by the user.
