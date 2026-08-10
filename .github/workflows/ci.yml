@@ -1,0 +1,99 @@
+# CI for the Dart OTel reference demo.
+#
+# Three gates, in the order that fails fastest:
+#   analyze  zero lints, info level included
+#   test     every suite in the repo
+#   build    the artifacts a reader actually runs
+#
+# The build gate exists because analyze and test both pass on code that
+# cannot be built: a broken platform config, a plugin that will not link,
+# a web-incompatible import behind a conditional. Those reach a reader as
+# "I cloned it and it does not run", which is the worst first impression
+# a reference demo can make.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Flutter carries the Dart SDK, so one install serves the Flutter
+      # apps and the pure-Dart packages, services and CLI alike.
+      # apps/dinger needs Dart >= 3.12, which is why this tracks stable
+      # rather than pinning an older release.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Report toolchain
+        run: flutter --version
+
+      # The repo root is a pub workspace, so this one resolve covers every
+      # member package, service and app in the `workspace:` list.
+      - name: Resolve workspace
+        run: flutter pub get
+
+      # apps/dinger is deliberately NOT a workspace member (it is a
+      # standalone blog demo with its own SDK floor), so it resolves on
+      # its own or it would be analyzed against stale package config.
+      - name: Resolve dinger
+        run: flutter pub get
+        working-directory: apps/dinger
+
+      # Zero lints, info level included. `dart analyze` exits non-zero on
+      # infos only with --fatal-infos, which is the standard this repo
+      # already holds itself to.
+      - name: Analyze
+        run: dart analyze --fatal-infos
+
+      # Every suite. Flutter packages need `flutter test`; pure-Dart ones
+      # use `dart test`. Discovered rather than listed, so a new package
+      # with tests is covered the day it lands instead of the day someone
+      # remembers to edit this file.
+      - name: Test
+        run: |
+          set -euo pipefail
+          failed=0
+          while IFS= read -r dir; do
+            pkg="${dir%/test}"
+            [ -n "$(find "$dir" -name '*_test.dart' -print -quit)" ] || continue
+            if grep -q 'sdk: flutter' "$pkg/pubspec.yaml" 2>/dev/null; then
+              echo "::group::flutter test $pkg"
+              (cd "$pkg" && flutter test) || failed=1
+            else
+              echo "::group::dart test $pkg"
+              (cd "$pkg" && dart test) || failed=1
+            fi
+            echo "::endgroup::"
+          done < <(find . -type d -name test -not -path './.git/*' -not -path '*/build/*' | sort)
+          exit "$failed"
+
+      # Build what a reader runs. weather_flutter ships only a `web/`
+      # platform folder in this repo (the native ones are scaffolded by
+      # `flutter create .`), so web is the target that exists here — and
+      # it is the one that would catch a dart:io import leaking past a
+      # conditional.
+      - name: Build weather_flutter (web)
+        run: flutter build web --release
+        working-directory: apps/weather_flutter
+
+      # AOT-compile the servers and the CLI. `dart analyze` does not catch
+      # everything the AOT compiler rejects.
+      - name: Compile services and CLI
+        run: |
+          set -euo pipefail
+          dart compile exe services/weather_api/bin/server.dart -o /tmp/weather_api
+          dart compile exe services/cache_service/bin/server.dart -o /tmp/cache_service
+          dart compile exe apps/weather_cli/bin/weather.dart -o /tmp/weather_cli
