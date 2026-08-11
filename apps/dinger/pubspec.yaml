@@ -21,17 +21,15 @@ dependencies:
   genkit:
     git:
       url: https://github.com/MindfulSoftwareLLC/genkit-dart.git
-      ref: ba72f2e7af0ec3637d14cdc4a37c4d15568985c4
+      ref: a34bfe5691a301abfd9d1b67007e7b6c7cb0437e
       path: packages/genkit
   genkit_google_genai:
     git:
       url: https://github.com/MindfulSoftwareLLC/genkit-dart.git
-      ref: ba72f2e7af0ec3637d14cdc4a37c4d15568985c4
+      ref: a34bfe5691a301abfd9d1b67007e7b6c7cb0437e
       path: packages/genkit_google_genai
 
-  # Dartastic OpenTelemetry (OSS). The published beta is the target; see
-  # the dependency_overrides below for why it is not what actually
-  # resolves yet.
+  # Dartastic OpenTelemetry (OSS), straight from pub.dev.
   dartastic_opentelemetry: ^1.1.0-beta.12
 
   http: ^1.5.0
@@ -47,35 +45,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-# Genkit calls `OTel.isInitialized`, which the published SDK does not have
-# yet -- it lives on the in-flight branches below. Without these overrides
-# the app analyzes and tests clean and then fails to compile:
-#
-#   packages/genkit/lib/src/o11y/telemetry/exporter_impl.dart:58
-#   Error: Member not found: 'isInitialized'.
-#
-# The genkit fork carries the same two overrides in its own root pubspec,
-# but dependency_overrides only apply in a resolution's ROOT, so they do
-# nothing for consumers and have to be repeated here.
-#
-# Pinned to commits, not branches, so a build is reproducible. Both repos
-# are public, so this resolves for anyone who clones -- which is the whole
-# point of moving off the old path dependency.
-#
-# DELETE THIS BLOCK once a published SDK exposes `OTel.isInitialized`.
 dependency_overrides:
   # genkit_google_genai pins genkit from pub.dev; force the whole graph
   # onto the one Dartastic-wired fork.
   genkit:
     git:
       url: https://github.com/MindfulSoftwareLLC/genkit-dart.git
-      ref: ba72f2e7af0ec3637d14cdc4a37c4d15568985c4
+      ref: a34bfe5691a301abfd9d1b67007e7b6c7cb0437e
       path: packages/genkit
-  dartastic_opentelemetry:
-    git:
-      url: https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry.git
-      ref: a8c209fa86af4f91c935ca855a80f23aa7ed3496
-  dartastic_opentelemetry_api:
-    git:
-      url: https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry_api.git
-      ref: 6cb73afaef3d0434132f12b39ca9f4fd1223944e
