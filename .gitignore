@@ -4,6 +4,20 @@
 build/
 pubspec.lock
 
+# Flutter — generated and machine-specific. These embed absolute
+# pub-cache paths (/Users/<you>/.pub-cache/...), so committing one leaks
+# a local filesystem layout into a public repo. Flutter regenerates them
+# on `pub get` and on build; the files say so themselves.
+.flutter-plugins
+.flutter-plugins-dependencies
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/macos/Flutter/Flutter-Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/macos/Flutter/ephemeral/
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+
 # IDE
 *.iml
 .idea/
