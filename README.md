@@ -26,6 +26,217 @@ with features including:
 To access the commercial demo, sign in to [Dartastic.io](https://dartastic.io) and use the
 "Reference Demo" link at the top of your Dashboard.
 
+## OpenTelemetry Primer
+
+If this is your first contact with OpenTelemetry ("OTel"), read this section first.
+
+**Just want to run the demo?** Jump to [Quick start](#quick-start).
+
+The [OpenTelemetry.io docs](https://opentelemetry.io/docs/) are excellent and recommended reading.
+However, they are very server-oriented.  Indeed Client Side Telemetry
+is a newer and growing specification. This primer is focused on fullstack Dart and Flutter, from client to server
+because `dartastic_opentelemetry` supports the full stack.
+
+### The Problem OTel Solves
+
+A single tap in a Flutter app can **trace** through a mobile client, 
+an API server, multiple microservices, caches, databases, and third-party services. 
+When it is slow, or fails, each of those processes writes its own logs, and nothing connects 
+them. You end up guessing which log line in services B & D belong to the complaint about
+the button click in client, A.  It's very difficult to answer "What problem did this mobile
+user encounter?"
+
+**The solution** is to give each request an identity (a trace id) that every process 
+shares by passing it along, and to have each process record what it did under that
+identity. That is the key to OpenTelemetry.
+
+### OTel Concepts
+**Signals** - There are three stable signals in OTel: **Traces**, **Metrics** and **Logs**. This demo emits all three. (A Profile Signal has an early alpha definition and beyond scope.)
+  - **Traces** - The complete record of a single request or operation as it travels from a client through one more services.  
+    They answer the question “what happened from the moment this work started until it finished?”
+  - **Metrics** - Numerical measurements collected over time (counts, values, distributions).  
+    They answer questions like “how many?”, “how much?”, or “how long on average?”
+  - **Logs** - Timestamped records of discrete events with a level.  
+    They answer the question “what exactly happened at this moment?”
+
+**Context** - A bag of values that travels with the current execution. It primarily carries information about a Trace, 
+but Logs and Metrics also read from it.    
+Context is how the three Signals stay correlated. 
+  - **Context propagation** — How trace information crosses execution boundaries. The W3C defines
+  the `traceparent` HTTP header to carry context information between processes communicating via HTTP. Context is also propagated in other ways. For example, from one Dart isolate to another or from a 
+  Flutter Widget into JavaScript running inside it's child WebView. These are handled this transparently by `dartastic_opentelemety`.
+  - **Baggage** — your own key/value pairs that ride along with the trace request. These are propagated by `dartastic_opetelemetry`'s BaggagePropagator.
+  Baggage is not used often but useful for things every service should be able to see. Here are some common, practical baggage properties:
+    
+      | Key                   | Example value  | Why it’s useful                                         |
+      |-----------------------|----------------|---------------------------------------------------------|
+      | `user.role`           | `"admin"`      | Authorization / audit context                           |
+      | `discount.pct`        | `"15"`         | Calculated value that later services need               |
+      | `feature.flag.new_ui` | `"enabled"`    | Propagate A/B or feature-flag decisions                 |
+      | `debug.verbose`       | `"true"`       | Force detailed logging for this request only            |
+    
+    - Keep baggage small: it is copied onto every downstream request. 
+    - Baggage is not encrypted and is visible in headers, so only put data in baggage that you are happy to send to every downstream service.
+    - The classic pattern is to set baggage on the API gateway (not from a Flutter app or web UI).
+
+- **Attributes and Semantic Conventions** — attributes add detailed key/value information in telemetry.
+  - Attributes are free-form, but OTel publishes Semantic Conventions - agreed upon names for hundreds of common attributes.
+  - To ensure rock-solid OTel implementations, `dartastic_opetelemetry_api` defines Dart enums for
+    every semantic convention, automatically generated from the OTel spec.
+  - Examples:
+    
+    | Dart Enum               | Attribute name         | Description                      |
+    |-------------------------|------------------------|----------------------------------|
+    | `Http.httpMethod`       | 'http.method'          | HTTP request method              |
+    | `User.userId`           | 'user.id'              | Identifier for an end user       |
+    | `K8s.k8sClusterName`    | 'k8s.cluster.name'     | Name of a Kubernetes cluster     |
+    | `Db.dbTable`            | 'db.collection.name'   | Name of a database table         |
+    | `Geo.geoCountryIsoCode` | 'geo.country.iso_code' | ISO Country Code                 |
+  
+  - **AI understands the Semantic Conventions, making runtime analysis with AI very productive.**
+- **Resource Attributes** are special attributes describing *what is emitting*, not what happened. The values are 
+  computed once at initialization, then attached to everything.
+  
+  | Dart Enum                              | Attribute name                | Description                                      |
+  |----------------------------------------|-------------------------------|--------------------------------------------------|
+  | `Deployment.deploymentEnvironmentName` | `deployment.environment.name` | Deployment environment (production, staging…)    |
+  | `Host.hostArch`                        | `host.arch`                   | CPU architecture of the host                     |
+  | `Cloud.cloudRegion`                    | `cloud.region`                | Cloud region (e.g. `us-east-1`, `europe-west1`)  |
+  | `Device.deviceId`                      | `device.id`                   | Unique identifier of the device                  |
+  | `Device.deviceManufacturer`            | `device.manufacturer`         | Device manufacturer (Apple, Samsung, Google…)    |
+
+  - Resources are collected automatically in `OTel.initialize()` but additional resources can be added to the set and passed
+    into the call.  The example Flutter app shows how `device_info_plus` and `package_info_plus` are used to initialize with 
+    important client resource attributes.
+  - Resources allows OTel backend to show you that a certain kind of error happens on iOS but not Android, for example.
+
+**Traces** 
+  - **Trace** — all the work for one short-lived action or request, linked by a shared **trace id**. 
+  - **Span** — one unit of work, always executing within a trace: an HTTP handler, a database call, 
+    a route navigation, a tap or a swipe. The trace has a root span and a tree of child spans.  
+    Spans are the primary object that developers interact with.
+    Spans have:
+    - A name.
+    - A parent span (the parent of the root span is null).
+    - A start and end time.
+    - **Status** (Ok or Error).
+    - Span attributes.
+    - **Span Events**.
+    
+**Metrics** are aggregated numbers (request rate, latency histograms);
+
+**Logs** are the familiar text lines, but stamped with the trace id so you can jump from a
+  span to exactly the logs it produced.
+
+Transport
+- **Exporters** — the part that ships data out of your process, 
+  **OTLP**, **O**pen**T**e**L**emetry's wire **P**rotocol. Because OTLP is a standard, changing
+  backends is a config change, not a rewrite. 
+  - OTLP has two flavors: HTTP and gRPC, either can be compressed or uncompressed.
+- **Sampling** — keeping every trace from a busy service can be expensive with most vendors, 
+   so it's typical to set a sampling rate to keep only a fraction. It's a tradeoff, the lower the 
+   sampling rate, the higher the chance you will miss important information about a user's problem.
+
+
+### API vs SDK, which matters in Dart
+
+OTel splits into two packages, and the split is not bureaucratic:
+
+- `dartastic_opentelemetry_api` — the interfaces you *call*. It does nothing
+  on its own: with no SDK installed, every call is a cheap no-op.
+- `dartastic_opentelemetry` — the SDK that actually records and exports.
+
+**Libraries depend on the API; applications install the SDK.** That way a
+package can be instrumented without forcing telemetry (or a vendor choice) on
+whoever uses it. If the app never initializes an SDK, the instrumentation
+costs nothing. `apps/dinger` in this repo is exactly that case: Genkit is
+instrumented against the API, and the app decides where the data goes.
+
+### What good looks like
+
+Three habits separate useful telemetry from expensive noise, and the demo
+follows all three:
+
+1. **Bounded cardinality.** Span names and metric labels must come from a
+   small fixed set. `GET /weather/{city}` is a good span name; `GET
+   /weather/Boston` is a new time series per city and will bankrupt your
+   backend.
+2. **Conventional names.** `server.address`, not `host`, `hostname`, or
+   `srv`. The demo uses generated enums so the compiler catches drift.
+3. **Errors on the span.** A caught exception recorded on the span, with the
+   status set, is what makes a trace searchable for failures.
+
+The next section shows how each of these is implemented here, and where to
+copy it from.
+
+## OpenTelemetry Patterns
+
+The patterns the demo establishes — what to copy, why, and where each
+pattern lives in the codebase.
+
+**Trace context propagation.** W3C Trace Context (`traceparent`,
+`tracestate`) on every HTTP boundary, inbound and outbound.
+Implemented once in `weather_http_kit` middleware and the instrumented
+HTTP client; reused by every service and the CLI.
+
+**Baggage.** W3C Baggage propagation alongside trace context. The
+bootstrap registers a `BaggageSpanProcessor` so baggage entries become
+span attributes automatically — searchable in any backend without
+manual enrichment. Demo entries: `cli.run_id`, `cli.session_id`.
+
+**Sampling.** Default is `ParentBasedSampler(TraceIdRatioSampler(arg))`
+so upstream sampling decisions are honored. The demo ships at 100%
+sampling (`OTEL_TRACES_SAMPLER_ARG=1.0`); production guidance for
+tuning is in the deploy READMEs.
+
+**Span processor.** `BatchSpanProcessor` everywhere. Production-grade
+defaults: `scheduleDelay: 1s`, `maxQueueSize: 2048`,
+`maxExportBatchSize: 512`. The same configuration applies in
+serverless: Functions Gen 2 sits on Cloud Run and receives `SIGTERM`
+~10 seconds before instance shutdown, which is more than enough for a
+tuned batch processor to drain.
+
+**Shutdown.** `ProcessSignal.sigterm.watch()` is registered at app
+boot and calls `OTel.shutdown()`, which force-flushes processors and
+closes exporters. There is no flush code anywhere in the request hot
+path. The only spans that can be lost are from `SIGKILL` — and you
+cannot trace your way out of a hard crash regardless of language or
+telemetry stack.
+
+**Resource attributes.** Full semantic-convention coverage per
+deployment target: `service.*`, `deployment.environment`,
+`cloud.provider`, `cloud.platform`, `cloud.region`, `faas.*` for
+Functions (`faas.name`, `faas.version`, `faas.instance`,
+`faas.coldstart`), `host.*` for local, `container.*` where
+applicable. Resource detection is automatic with manual overrides
+via env.
+
+**Cardinality discipline.** High-cardinality attributes (city name,
+query parameters, error messages, full URLs) belong on **spans**,
+where storage cost is bounded by the trace itself. Low-cardinality
+attributes (`country`, `http.route`, `http.method`,
+`http.status_code`, cache result class) belong on **metrics**, where
+every unique combination becomes a separate time series. We never
+put raw user IDs, request IDs, or city names on metrics. This rule
+is enforced by helper functions in `weather_http_kit` and pinned by
+a guardrail test on every metric in the demo.
+
+**Logs.** `package:logging` integrated with the OTel logs SDK. Log
+records carry the active trace ID and span ID for one-click
+correlation. Log volume is itself a metric.
+
+**Errors.** Every caught exception in instrumented code calls
+`span.recordException(e, stackTrace: s)` and
+`span.setStatus(SpanStatusCode.error, ...)`. The recorded
+`exception.stacktrace` attribute is what the trace backend (Tempo,
+Cloud Trace) renders for the on-call to debug from.
+
+**Golden signals + extras.** Standard RED (Rate, Errors, Duration)
+plus saturation proxies (in-flight requests), dependency health
+(Open-Meteo success rate), cache effectiveness (hit / miss / stale
+ratios), cold-start histograms (Functions only), and cost-relevant
+metrics (upstream API call counter — people pay per call).
+
 ## How The Demo Works
 
 These demos run against any OTel backend. The instructions show how to run
@@ -47,15 +258,13 @@ demos overall.
 
 ## Distributed Tracing CLI Demo
 
-Distributed tracing is the most powerful tool in OTel. One **trace** follows
-a single request everywhere it goes: from a client (Flutter, CLI, web page),
-into the backend, through every service that touches it, and back again.
-Each step records a **span** saying what it did, how long it took, and
-whether it failed.
+Here is a trace, in the concrete. The demo is a small weather service with
+CLI and Flutter clients, and one request crosses four processes — which is
+exactly the situation that makes tracing worth the trouble.
 
-The demo is a small weather service with CLI and Flutter clients. Answering
-"what is the weather in Boston?" takes two steps, because the Open-Meteo
-forecast API does not accept city names — it accepts coordinates:
+Answering "what is the weather in Boston?" takes two steps, because the
+Open-Meteo forecast API does not accept city names — it accepts
+coordinates:
 
 1. **Geocode**: look up "Boston" and get back its latitude and longitude.
 2. **Forecast**: ask for the forecast *at those coordinates*.
@@ -81,6 +290,8 @@ Every arrow above is a span, and they all share one trace id, so the whole
 request arrives in the UI as a single tree you can expand — four levels
 deep, or five when the traced nginx edge sits in front of `weather-api` in
 the local stack.
+
+## Demo Features
 
 The demo features production-grade best practices:
 - A `weather_client` SDK that implements `WeatherProvider` over HTTP —
@@ -132,7 +343,7 @@ A **Genkit AI demo** ([`apps/dinger`](./apps/dinger/README.md)) —
   clean clone; that moves to a pub.dev version once Genkit ships
   `dartastic_opentelemetry`.
 
-## Quick start
+## Quick Start
 
 **1. Start everything.** This one command brings up `weather-api`,
 `cache-service`, and the local observability stack in Docker. Give it a
@@ -157,46 +368,23 @@ see patterns.
 load/run_swarm.sh --total 500 --parallel 25
 ```
 
-**4. Look at it.** Open Grafana and sign in with `admin` / `admin`, then go
-to **Dashboards → Dart OTel Demo → Service Overview**. After step 3 the
-latency heatmap splits into two bands: the fast one is requests answered
-from cache, the slow one is requests that had to call Open-Meteo.
+**4. Run the Flutter client.** Same weather service, but the trace now
+starts from a tap in a Flutter app instead of the CLI. Chrome is the target
+because it behaves the same on macOS, Linux and Windows.
 
 ```sh
-open http://localhost:3000
+cd apps/weather_flutter && flutter run -d chrome
 ```
+
+**5. Look at the telemetry.** Browse to <http://localhost:3000> and sign in
+with `admin` / `admin`, then open **Dashboards → Dart OTel Demo → Service
+Overview**. After step 3 the latency heatmap splits into two bands: the fast
+one is requests answered from cache, the slow one is requests that had to
+call Open-Meteo. To follow a single request instead, go to **Explore →
+Tempo** and pick a trace.
 
 Full walkthrough — what to look for in the trace tree, how to drive it from the CLI, how to tear it down 
 is described in [deploy/local/README.md](./deploy/local/README.md).
-
-## System architecture
-
-```
-                ┌──────────────────────────────────────┐
-                │  external — open-meteo.com           │
-                └──────────────▲───────────────────────┘
-                               │ http (W3C trace context)
-                ┌──────────────┴───────────────────────┐
-                │  cache_service                       │
-                │  in-memory cache; on miss, fetches   │
-                │  upstream and writes back            │
-                └──────────────▲───────────────────────┘
-                               │ http (W3C + baggage)
-                ┌──────────────┴───────────────────────┐
-                │  weather_api                         │
-                │  public front door: validation,      │
-                │  request shaping, response format    │
-                └──────────────▲───────────────────────┘
-                               │ http (W3C + baggage)
-                ┌──────────────┴───────────────────────┐
-                │  weather_cli   (instances 1..N,      │
-                │                 swarmable)           │
-                └──────────────────────────────────────┘
-```
-
-A single trace identifier flows from the CLI through both internal services
-and into the external Open-Meteo call. Baggage entries (`cli.run_id`, `cli.session_id`) flow with it and become
-searchable attributes on every span via the `BaggageSpanProcessor`.
 
 ## Package layout
 
@@ -515,73 +703,52 @@ between backends.**
 | Google Cloud Run                | service     | service       | Service-to-service via internal URL|
 | Dart Cloud Functions (Gen 2)    | function    | function      | Function-to-function via HTTPS     |
 
-## OpenTelemetry patterns
+## System architecture
 
-The patterns the demo establishes — what to copy, why, and where each
-pattern lives in the codebase.
+The request path from [Distributed Tracing CLI Demo](#distributed-tracing-cli-demo),
+drawn as the deployment stack — who calls whom, and what rides on each hop:
 
-**Trace context propagation.** W3C Trace Context (`traceparent`,
-`tracestate`) on every HTTP boundary, inbound and outbound.
-Implemented once in `weather_http_kit` middleware and the instrumented
-HTTP client; reused by every service and the CLI.
+```
+                ┌──────────────────────────────────────┐
+                │  external — open-meteo.com           │
+                │  geocoding-api → coordinates         │
+                │  api           → forecast            │
+                └──────────────▲───────────────────────┘
+                               │ http (W3C trace context)
+                ┌──────────────┴───────────────────────┐
+                │  cache_service                       │
+                │  in-memory cache; on miss, fetches   │
+                │  upstream and writes back            │
+                └──────────────▲───────────────────────┘
+                               │ http (W3C + baggage)
+                ┌──────────────┴───────────────────────┐
+                │  weather_api                         │
+                │  public front door: validation,      │
+                │  request shaping, response format    │
+                └──────────────▲───────────────────────┘
+                               │ http (W3C + baggage)
+                ┌──────────────┴───────────────────────┐
+                │  weather_cli   (instances 1..N,      │
+                │                 swarmable)           │
+                │  or apps/weather_flutter in a browser│
+                └──────────────────────────────────────┘
+```
 
-**Baggage.** W3C Baggage propagation alongside trace context. The
-bootstrap registers a `BaggageSpanProcessor` so baggage entries become
-span attributes automatically — searchable in any backend without
-manual enrichment. Demo entries: `cli.run_id`, `cli.session_id`.
+Two things travel on those arrows, and they are different:
 
-**Sampling.** Default is `ParentBasedSampler(TraceIdRatioSampler(arg))`
-so upstream sampling decisions are honored. The demo ships at 100%
-sampling (`OTEL_TRACES_SAMPLER_ARG=1.0`); production guidance for
-tuning is in the deploy READMEs.
+- **Trace context** is what stitches the spans together. Each service passes
+  the `traceparent` header along, so the CLI, both services and the
+  Open-Meteo calls all report into one trace instead of four unrelated ones.
+- **Baggage** is your own key/value data riding beside it. The CLI sets
+  `cli.run_id` and `cli.session_id`, and a `BaggageSpanProcessor` copies them
+  onto every span downstream — so you can search for one swarm run across
+  services without threading a parameter through every function.
 
-**Span processor.** `BatchSpanProcessor` everywhere. Production-grade
-defaults: `scheduleDelay: 1s`, `maxQueueSize: 2048`,
-`maxExportBatchSize: 512`. The same configuration applies in
-serverless: Functions Gen 2 sits on Cloud Run and receives `SIGTERM`
-~10 seconds before instance shutdown, which is more than enough for a
-tuned batch processor to drain.
+Both are W3C standards, not Dartastic inventions, which is why the same
+headers work against any OTel backend.
 
-**Shutdown.** `ProcessSignal.sigterm.watch()` is registered at app
-boot and calls `OTel.shutdown()`, which force-flushes processors and
-closes exporters. There is no flush code anywhere in the request hot
-path. The only spans that can be lost are from `SIGKILL` — and you
-cannot trace your way out of a hard crash regardless of language or
-telemetry stack.
-
-**Resource attributes.** Full semantic-convention coverage per
-deployment target: `service.*`, `deployment.environment`,
-`cloud.provider`, `cloud.platform`, `cloud.region`, `faas.*` for
-Functions (`faas.name`, `faas.version`, `faas.instance`,
-`faas.coldstart`), `host.*` for local, `container.*` where
-applicable. Resource detection is automatic with manual overrides
-via env.
-
-**Cardinality discipline.** High-cardinality attributes (city name,
-query parameters, error messages, full URLs) belong on **spans**,
-where storage cost is bounded by the trace itself. Low-cardinality
-attributes (`country`, `http.route`, `http.method`,
-`http.status_code`, cache result class) belong on **metrics**, where
-every unique combination becomes a separate time series. We never
-put raw user IDs, request IDs, or city names on metrics. This rule
-is enforced by helper functions in `weather_http_kit` and pinned by
-a guardrail test on every metric in the demo.
-
-**Logs.** `package:logging` integrated with the OTel logs SDK. Log
-records carry the active trace ID and span ID for one-click
-correlation. Log volume is itself a metric.
-
-**Errors.** Every caught exception in instrumented code calls
-`span.recordException(e, stackTrace: s)` and
-`span.setStatus(SpanStatusCode.error, ...)`. The recorded
-`exception.stacktrace` attribute is what the trace backend (Tempo,
-Cloud Trace) renders for the on-call to debug from.
-
-**Golden signals + extras.** Standard RED (Rate, Errors, Duration)
-plus saturation proxies (in-flight requests), dependency health
-(Open-Meteo success rate), cache effectiveness (hit / miss / stale
-ratios), cold-start histograms (Functions only), and cost-relevant
-metrics (upstream API call counter — people pay per call).
+[OpenTelemetry patterns](#opentelemetry-patterns) above says how each of
+these is implemented and where to copy it from.
 
 ## Local development workflow
 
