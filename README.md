@@ -1,6 +1,6 @@
 # Dart OTel Reference Demo
 
-A reference implementation of the [Dartastic OpenTelemetry SDK][sdk],
+A reference implementation of the [`dartastic_opentelemetry`][sdk] SDK,
 demonstrating well-instrumented:
 - Dart server applications
 - Dart CLIs
@@ -11,19 +11,19 @@ demonstrating well-instrumented:
 ## Commercial Demo
 
 [Dartastic.io](https://dartastic.io) offers an extended commercial version
-of this demo, built on [Dartastic Native OTel](https://dartastic.io/otel),
+of this demo and dozens of others, built on [Dartastic Native OTel](https://dartastic.io/otel),
 with features including:
 - Native error capture
 - Janky widget identification
 - Automatic personal information scrubbing
-- Improved performance via a native Dartastic OpenTelemetry implementation
+- Improved performance via the Dartastic Native OTel SDK
 - [Dartastic Observatory](https://dartastic.io/observatory) o11y stacks specialized for Flutter and Dart
   - Dashboards utilizing attributes beyond the OpenTelemetry specification.
   - Demo with links that open the dashboard related to the demo.
 - [Dartastic Symbolizer](https://dartastic.io/symbolizer) conversion of binary production errors into human-readable 
   source code lines.
 
-To access it, sign in to [Dartastic.io](https://dartastic.io) and use the
+To access the commercial demo, sign in to [Dartastic.io](https://dartastic.io) and use the
 "Reference Demo" link at the top of your Dashboard.
 
 ## How The Demo Works
@@ -47,33 +47,40 @@ demos overall.
 
 ## Distributed Tracing CLI Demo
 
-Distributed tracing is the most powerful tool of OTel. A single trace spans
-from a client application (Flutter, CLI, web page) to the backend, through
-the services that handle the request and back to the client, with each step
-adding information about how the request was handled.
+Distributed tracing is the most powerful tool in OTel. One **trace** follows
+a single request everywhere it goes: from a client (Flutter, CLI, web page),
+into the backend, through every service that touches it, and back again.
+Each step records a **span** saying what it did, how long it took, and
+whether it failed.
 
-The demo system is a weather service that mimics a simple but real service
-with CLI and Flutter clients. Answering "what is the weather in Boston?"
-takes **two** lookups, not one, so a request fans out rather than travelling
-a single line:
+The demo is a small weather service with CLI and Flutter clients. Answering
+"what is the weather in Boston?" takes two steps, because the Open-Meteo
+forecast API does not accept city names — it accepts coordinates:
+
+1. **Geocode**: look up "Boston" and get back its latitude and longitude.
+2. **Forecast**: ask for the forecast *at those coordinates*.
+
+Step 2 needs the answer from step 1, so they happen in order:
 
 ```text
-weather_cli ─▶ weather-api ─┬─▶ cache-service ─▶ geocoding-api.open-meteo.com   city → coordinates
-                            └─▶ cache-service ─▶ api.open-meteo.com             coordinates → forecast
+weather_cli ─▶ weather-api ─▶ cache-service ─▶ geocoding-api.open-meteo.com
+                    │                          "Boston" → 42.36, -71.06
+                    │
+                    └────────▶ cache-service ─▶ api.open-meteo.com
+                                               42.36, -71.06 → 3-day forecast
 ```
 
-`weather-api` first geocodes the city, then fetches the forecast for those
-coordinates. Both calls go through `cache-service`, which serves from cache
-or calls Open-Meteo on a miss. The two are cached independently — keyed on
-`(query, maxResults)` and `(cityId, forecastDays)` — so repeating a request
-hits both caches, while asking for the same city with a different
-`--days` hits the geocode cache and misses the forecast one. They also hit
-two different Open-Meteo services, which is why you see two distinct
-upstream spans.
+Both calls go through `cache-service`, which answers from memory when it
+can and only calls Open-Meteo on a miss. The two answers are cached
+separately: the coordinates under the city name, the forecast under the
+city id plus the number of days. So asking for Boston twice hits both
+caches, while asking for Boston with a different `--days` reuses the cached
+coordinates and re-fetches only the forecast.
 
-Either branch is four hops deep (five when the traced nginx edge fronts
-`weather-api` in the local stack), and both branches belong to the same
-trace, so the whole fan-out arrives as one tree rather than two.
+Every arrow above is a span, and they all share one trace id, so the whole
+request arrives in the UI as a single tree you can expand — four levels
+deep, or five when the traced nginx edge sits in front of `weather-api` in
+the local stack.
 
 The demo features production-grade best practices:
 - A `weather_client` SDK that implements `WeatherProvider` over HTTP —
@@ -82,18 +89,18 @@ The demo features production-grade best practices:
   demonstrating the symmetry between the demo's services and a
   caller-side library.
 - A **Flutter web/wasm client** ([`apps/weather_flutter`](./apps/weather_flutter/README.md))
-  that originates the trace from a user tap. The Dartastic SDK runs
-  unchanged in the browser.
-- Wire format swaps on `kDebugMode`: **debug builds use OTLP/HTTP-
-   JSON** on every signal so OTLP payloads are readable JSON in DevTools;
-   **release builds use protobuf** so end users don't see telemetry
-   contents in their browser.
+  that originates the trace from a user tap. The `dartastic_opentelemetry`
+  SDK runs unchanged in the browser.
+- Wire format swaps on `kDebugMode`: **debug builds use OTLP/HTTP-JSON**
+  on every signal so OTLP payloads are readable JSON in DevTools;
+  **release builds use protobuf** so end users don't see telemetry
+  contents in their browser.
 - Propagated W3C Trace Context and Baggage: The same `InstrumentedHttpClient` used server-side
   propagates W3C trace context across the HTTP boundary so the
   Flutter span is the root of a five-level trace tree.
-- The standard OTel HTTP server semantic conventions: a
+- The standard OTel HTTP server Semantic Conventions: a
   `http.server.request.duration` histogram with bounded labels, plus
-  full HTTP semconv attributes on every server span. API semantic enums
+  full HTTP semconv attributes on every server span. API Semantic enums
   are used, letting the compiler ensure key strings are consistent 
   ('host.name' not 'hostname' via `dartastic_opentelemetry_api`'s `Host.hostName`).
 - Usage of `BatchSpanProcessor` for efficiency.
@@ -112,15 +119,18 @@ The demo features production-grade best practices:
 - A testing strategy that uses the **real** OTel SDK against an
   in-memory exporter — no mocking the SDK. See
   [Testing strategy](#testing-strategy).
-- A **Genkit AI demo** ([`apps/dinger`](./apps/dinger/README.md)) —
+
+## Dinger Demo
+A **Genkit AI demo** ([`apps/dinger`](./apps/dinger/README.md)) —
   "Dinger", a baseball-highlights app where Google's Genkit (with
-  Workiva's OpenTelemetry swapped out for **Dartastic**) pulls live
+  Workiva's OpenTelemetry swapped out for **dartastic_opentelemetry**) pulls live
   MLB stats and writes recaps. It showcases Genkit **tool-calling +
   structured output**, and because Genkit runs on Dartastic, the flow,
   the model call, and the tool's live MLB fetch all appear as one trace
   in the same stack. It depends on a fork of Genkit by pinned git ref —
-  the one with Dartastic wired in — so it builds from a clean clone; that
-  moves to a pub.dev version once Genkit ships the Dartastic dep.
+  the one with `dartastic_opentelemetry` wired in — so it builds from a
+  clean clone; that moves to a pub.dev version once Genkit ships
+  `dartastic_opentelemetry`.
 
 ## Quick start
 
@@ -731,7 +741,7 @@ These are demo-time conveniences. They never run in a production deployment.
 
 - [DESIGN.md](./DESIGN.md) — architectural rationale and design decisions
 - [Dartastic OpenTelemetry SDK][sdk]
-- [Flutterrific OpenTelemetry][flutter] — the Flutter-side companion
+- [Flutterrific OpenTelemetry][flutterrific] — the Flutter-side companion
 - [Open-Meteo](https://open-meteo.com) — upstream weather API (free, no key)
 - [Dartastic.io](https://dartastic.io) — Pro packages and hosted backend
 
@@ -740,5 +750,4 @@ These are demo-time conveniences. They never run in a production deployment.
 Apache-2.0. See [LICENSE](./LICENSE).
 
 [sdk]: https://github.com/MindfulSoftwareLLC/dartastic_opentelemetry
-[flutter]: https://github.com/MindfulSoftwareLLC/flutterrific_opentelemetry
 [flutterrific]: https://github.com/MindfulSoftwareLLC/flutterrific_opentelemetry

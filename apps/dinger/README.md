@@ -112,7 +112,7 @@ pub.dev. The fork used to need overrides pointing the SDK and API at
 in-flight branches, because Genkit called APIs that were never published;
 that code now runs on the published SDK, and those branches are gone.
 
-Once a Genkit release ships the Dartastic dependency, the git ref goes away
+Once a Genkit release ships `dartastic_opentelemetry`, the git ref goes away
 and this becomes a plain pub.dev `flutter pub get`.
 
 ## What to screenshot for the blog
