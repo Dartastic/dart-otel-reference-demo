@@ -134,19 +134,36 @@ A **Genkit AI demo** ([`apps/dinger`](./apps/dinger/README.md)) —
 
 ## Quick start
 
+**1. Start everything.** This one command brings up `weather-api`,
+`cache-service`, and the local observability stack in Docker. Give it a
+moment the first time — it pulls images.
+
 ```sh
-# Bring up weather_api + cache_service + Grafana LGTM in one command:
 tool/stack.sh up
+```
 
-# In another shell, drive a request through the stack:
+**2. Send a request.** In a second terminal, ask for Boston's forecast. This
+is the request that produces the trace described above.
+
+```sh
 curl -s 'http://localhost:8080/weather/Boston?days=3' | jq .
+```
 
-# Or generate enough volume to make the dashboards interesting:
+**3. Make some traffic.** One request makes one trace, which is a thin
+dashboard. This fires 500 requests, 25 at a time, so there is enough data to
+see patterns.
+
+```sh
 load/run_swarm.sh --total 500 --parallel 25
+```
 
-# Open Grafana → Dashboards → Dart OTel Demo → Service Overview.
-# The latency heatmap shows the bimodal cache pattern after a swarm.
-open http://localhost:3000          # admin / admin
+**4. Look at it.** Open Grafana and sign in with `admin` / `admin`, then go
+to **Dashboards → Dart OTel Demo → Service Overview**. After step 3 the
+latency heatmap splits into two bands: the fast one is requests answered
+from cache, the slow one is requests that had to call Open-Meteo.
+
+```sh
+open http://localhost:3000
 ```
 
 Full walkthrough — what to look for in the trace tree, how to drive it from the CLI, how to tear it down 
