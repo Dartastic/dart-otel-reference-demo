@@ -96,9 +96,9 @@ void main() {
 
   // ---------- Healthz ----------
 
-  group('GET /healthz', () {
+  group('GET /health', () {
     test('returns 200 with body "ok"', () async {
-      final response = await handler(get('/healthz'));
+      final response = await handler(get('/health'));
       expect(response.statusCode, 200);
       expect(await response.readAsString(), 'ok\n');
     });

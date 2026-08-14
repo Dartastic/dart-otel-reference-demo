@@ -143,7 +143,7 @@ class WeatherOtelHandle {
   /// when `WEATHER_DEMO_MODE` was not `true` at bootstrap time.
   ///
   /// When non-null, the returned handler responds to:
-  ///   * `GET  /healthz`  — readiness probe, always 200.
+  ///   * `GET  /health`  — readiness probe, always 200.
   ///   * `POST /flush`    — runs [forceFlush] and returns 200, or 500 on
   ///                        flush failure with a brief diagnostic body.
   ///

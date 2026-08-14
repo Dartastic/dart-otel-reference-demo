@@ -83,19 +83,19 @@ void main() {
 
   // ---------- Tests ----------
 
-  group('GET /healthz', () {
+  group('GET /health', () {
     test('returns 200 with body "ok"', () async {
-      final response = await handler(get('/healthz'));
+      final response = await handler(get('/health'));
       expect(response.statusCode, 200);
       expect(await response.readAsString(), 'ok\n');
     });
 
     test('emits a server span named with the route template', () async {
-      await handler(get('/healthz'));
-      // Span name uses the route template ('/healthz') prefixed with the
+      await handler(get('/health'));
+      // Span name uses the route template ('/health') prefixed with the
       // method ('GET'). This is the otelMiddleware route-resolver
       // contract: low-cardinality span names are essential for dashboards.
-      final span = spans.findSpanByName('GET /healthz');
+      final span = spans.findSpanByName('GET /health');
       expect(span, isNotNull);
       expect(span!.kind, SpanKind.server);
     });

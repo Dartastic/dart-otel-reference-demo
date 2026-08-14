@@ -11,17 +11,26 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
-  # Google Genkit — depended on via PATH to the local clone that has
-  # Workiva's OpenTelemetry ripped out and Dartastic dropped in. Switch
-  # to a pub.dev version once a Genkit release ships the Dartastic dep.
+  # Google Genkit — the fork that has Workiva's OpenTelemetry ripped out
+  # and Dartastic dropped in, consumed by GIT REF so anyone who clones
+  # this repo can build it. It was a path dep to a sibling checkout,
+  # which only ever resolved on one machine. Pinned to a commit rather
+  # than a branch so a build is reproducible; bump it deliberately.
+  # Switch to a pub.dev version once a Genkit release ships the
+  # Dartastic dep.
   genkit:
-    path: ../../../genkit-dart/packages/genkit
+    git:
+      url: https://github.com/MindfulSoftwareLLC/genkit-dart.git
+      ref: a34bfe5691a301abfd9d1b67007e7b6c7cb0437e
+      path: packages/genkit
   genkit_google_genai:
-    path: ../../../genkit-dart/packages/genkit_google_genai
+    git:
+      url: https://github.com/MindfulSoftwareLLC/genkit-dart.git
+      ref: a34bfe5691a301abfd9d1b67007e7b6c7cb0437e
+      path: packages/genkit_google_genai
 
-  # Dartastic OpenTelemetry (OSS). beta.9 includes the late-binding and
-  # no-op-factory fixes Genkit relies on (formerly git overrides).
-  dartastic_opentelemetry: ^1.1.0-beta.11
+  # Dartastic OpenTelemetry (OSS), straight from pub.dev.
+  dartastic_opentelemetry: ^1.1.0-beta.12
 
   http: ^1.5.0
   url_launcher: ^6.3.0
@@ -33,11 +42,14 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.10.5
 
-dependency_overrides:
-  # genkit_google_genai pins genkit from pub.dev; force everything to the
-  # local Dartastic-wired clone so the whole graph uses one genkit.
-  genkit:
-    path: ../../../genkit-dart/packages/genkit
-
 flutter:
   uses-material-design: true
+
+dependency_overrides:
+  # genkit_google_genai pins genkit from pub.dev; force the whole graph
+  # onto the one Dartastic-wired fork.
+  genkit:
+    git:
+      url: https://github.com/MindfulSoftwareLLC/genkit-dart.git
+      ref: a34bfe5691a301abfd9d1b67007e7b6c7cb0437e
+      path: packages/genkit

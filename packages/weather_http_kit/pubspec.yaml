@@ -15,7 +15,7 @@ dependencies:
   # (consumers do that at app startup). The SDK barrel re-exports the
   # full API surface — including TextMapGetter/TextMapSetter, which the
   # header adapters implement — so no direct API dependency is needed.
-  dartastic_opentelemetry: ^1.1.0-beta.11
+  dartastic_opentelemetry: ^1.1.0-beta.12
 
   # HTTP client we wrap, and shelf for the server-side middleware.
   http: ^1.5.0

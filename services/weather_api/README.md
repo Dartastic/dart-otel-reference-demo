@@ -18,7 +18,7 @@ at the middle one.
 | Method | Path                  | Description                                   |
 | ------ | --------------------- | --------------------------------------------- |
 | `GET`  | `/weather/<city>`     | Forecast for `<city>`. Query: `?days=N` (1..16, default 3). |
-| `GET`  | `/healthz`            | Liveness / readiness probe.                   |
+| `GET`  | `/health`            | Liveness / readiness probe.                   |
 
 Status mapping for `/weather/<city>` follows OTel HTTP semantics:
 

@@ -119,8 +119,8 @@ fi
 
 # ── Sanity-check the upstream is responsive before spawning a swarm. ──
 if command -v curl >/dev/null 2>&1; then
-  if ! curl -fsS --max-time 3 "${UPSTREAM%/}/healthz" >/dev/null 2>&1; then
-    echo "error: upstream $UPSTREAM is not responding to /healthz." >&2
+  if ! curl -fsS --max-time 3 "${UPSTREAM%/}/health" >/dev/null 2>&1; then
+    echo "error: upstream $UPSTREAM is not responding to /health." >&2
     echo "       Start the stack with 'tool/stack.sh up' or set --upstream." >&2
     exit 1
   fi

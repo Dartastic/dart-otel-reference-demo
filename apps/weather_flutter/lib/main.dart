@@ -51,6 +51,8 @@ import 'package:logging/logging.dart';
 import 'package:weather_core/weather_core.dart';
 import 'package:weather_http_kit/weather_http_kit.dart';
 
+import 'src/resources.dart';
+
 const String _serviceName = 'weather-flutter';
 const String _serviceVersion = '0.1.0';
 
@@ -83,6 +85,17 @@ void main() {
   // and logs through `package:logging`, which the bridged OTel logs
   // SDK picks up automatically. Production-grade error capture in
   // ~25 lines.
+  //
+  // That bridge exports the record; it does not print it. Anything
+  // logged BEFORE the SDK is up — most importantly a failure of
+  // `OTel.initialize` itself — has no exporter to reach and no console
+  // to fall back on, so it needs the local sink wired first.
+  // Console sink FIRST, before anything can fail. Without it every
+  // `log.severe` below — including the zone handler that would catch a
+  // failed `OTel.initialize` — goes nowhere, and a startup failure shows
+  // up as a blank window with no explanation anywhere.
+  _configureLogging();
+
   final log = Logger('weather_flutter.uncaught');
   runZonedGuarded(
     () async {
@@ -116,15 +129,35 @@ void main() {
         OtlpHttpLogRecordExporterConfig(protocol: protocol),
       );
 
-      await OTel.initialize(
-        serviceName: _serviceName,
-        serviceVersion: _serviceVersion,
-        endpoint: _defaultOtlpEndpoint,
-        secure: false,
-        spanProcessor: BatchSpanProcessor(spanExporter),
-        metricExporter: metricExporter,
-        logRecordProcessor: BatchLogRecordProcessor(logExporter),
-      );
+      // Initialization runs BEFORE runApp, which is correct — telemetry
+      // has to be armed before the first frame. The cost is that anything
+      // throwing here takes runApp with it, and the user gets a blank
+      // window. So catch it and put the failure on screen instead: for a
+      // reference demo, a visible error beats a white rectangle.
+      try {
+        await OTel.initialize(
+          serviceName: _serviceName,
+          serviceVersion: _serviceVersion,
+          // Which build, on which device. Resource-level because it
+          // describes the whole app, not one operation — so every span,
+          // metric and log carries it and the backend can group by it.
+          resourceAttributes: OTel.attributesFromMap(
+            await demoResourceAttributes(),
+          ),
+          endpoint: _defaultOtlpEndpoint,
+          // TLS follows the endpoint scheme rather than a hardcoded flag,
+          // so pointing this at an https collector just works. Same rule
+          // as apps/dinger/lib/telemetry.dart.
+          secure: _defaultOtlpEndpoint.startsWith('https'),
+          spanProcessor: BatchSpanProcessor(spanExporter),
+          metricExporter: metricExporter,
+          logRecordProcessor: BatchLogRecordProcessor(logExporter),
+        );
+      } catch (error, stack) {
+        log.severe('OTel.initialize failed', error, stack);
+        runApp(InitFailureApp(error: error, stack: stack));
+        return;
+      }
 
       FlutterError.onError = (details) {
         FlutterError.presentError(details);
@@ -149,6 +182,81 @@ void main() {
       log.severe('uncaught: $error', error, stack);
     },
   );
+}
+
+/// Sends `package:logging` records and the SDK's own diagnostics to one
+/// visible sink.
+///
+/// The Flutter counterpart of `_configureLogging()` in
+/// `services/weather_api/bin/server.dart`, using `debugPrint` because
+/// there is no stdout to write to on a device.
+///
+/// `OTelLog.logFunction` already defaults to `print`, so this is not what
+/// switches SDK logging on. It routes that output through the same sink as
+/// everything else and puts the level under one knob — and makes the wiring
+/// explicit, which is the point in a demo people read to copy.
+void _configureLogging() {
+  Logger.root.level = Level.INFO;
+  Logger.root.onRecord.listen((record) {
+    debugPrint(
+      '${record.time.toIso8601String()} '
+      '[${record.level.name}] ${record.loggerName}: ${record.message}',
+    );
+    if (record.error != null) debugPrint('  error: ${record.error}');
+    if (record.stackTrace != null) debugPrint('  stack:\n${record.stackTrace}');
+  });
+
+  // SDK diagnostics: export failures, retries, config resolution.
+  OTelLog.currentLevel = LogLevel.info;
+  OTelLog.logFunction = debugPrint;
+}
+
+/// Shown when initialization throws, so the failure is on screen instead
+/// of the user staring at a blank window wondering what broke.
+class InitFailureApp extends StatelessWidget {
+  /// Creates the failure screen for [error] thrown at [stack].
+  const InitFailureApp({required this.error, required this.stack, super.key});
+
+  /// The error that stopped startup.
+  final Object error;
+
+  /// Where it was thrown.
+  final StackTrace stack;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.red.shade700,
+          foregroundColor: Colors.white,
+          title: const Text('Telemetry failed to start'),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectableText(
+                '$error',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red.shade700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SelectableText(
+                '$stack',
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Attaches an exception event to the currently-active OTel span,
