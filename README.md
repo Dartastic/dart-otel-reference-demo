@@ -119,55 +119,65 @@ Context is how the three Signals stay correlated.
     - A name.
     - A parent span (the parent of the root span is null).
     - A start and end time.
-    - **Status** (Ok or Error).
+    - **Status** (Ok or Error). Caught exception should typically set the span's status to Error, making it easy to filter for errors.
     - Span attributes.
     - **Span Events**.
-    
-**Metrics** are aggregated numbers (request rate, latency histograms);
 
-**Logs** are the familiar text lines, but stamped with the trace id so you can jump from a
-  span to exactly the logs it produced.
+**Metrics**  
 
-Transport
-- **Exporters** — the part that ships data out of your process, 
-  **OTLP**, **O**pen**T**e**L**emetry's wire **P**rotocol. Because OTLP is a standard, changing
-  backends is a config change, not a rewrite. 
+Metrics are numerical measurements aggregated over time.  
+Unlike Traces (which follow one request) and Logs (which record discrete events), Metrics answer “how is the system behaving overall?”
+
+Typical questions Metrics answer:
+- How many requests per second is this endpoint receiving?
+- What latency do 95% of the `POST /checkout` calls fall under? (the "p95 latency")
+- How much memory is the Flutter app using right now?
+- How many times did users tap the “Buy” button today?
+
+Common metric instruments in OTel:
+- **Counter** — a value that only goes up (e.g. total requests, total errors)
+- **UpDownCounter** — a value that can go up or down (e.g. active connections, items in a cart)
+- **Histogram** — a distribution of values (e.g. request duration, payload size)
+- **Gauge** — the current value of something at a point in time (e.g. CPU usage, battery level)
+
+Metrics can also carry attributes so you can slice them by `http.method`, `device.model.name`, etc.
+
+Because Metrics live in Context, they can be correlated with the Trace that was active when the measurement was taken 
+via **exemplars**.  Exemplars are samples of traces that occurred in the bucket of a histogram, or a value in a gauge 
+or counter.  They enable clicking from a metric point to the traces that fell into that metric point.
+
+**Logs** 
+
+Logs are timestamped records of discrete events, usually with a severity level (trace, debug, info, warn, error, fatal).  
+
+In traditional systems logs are just text. In OpenTelemetry they become first-class citizens:
+- Every log record can automatically pick up the current **Trace ID** and **Span ID** from Context.
+- You can jump from a Span in your observability UI straight to the exact log lines that were written while that Span was active.
+- Log records also accept **attributes**, so you can attach structured data (`user.id`, `error.code`, `http.status_code`…) instead of stuffing everything into the message string.
+
+This turns the classic “search through millions of log lines hoping to find the right ones” problem into a precise, 
+one-click correlation between Traces, Metrics and Logs.
+
+**Transport**
+- **Exporters** — the part that ships data out of your process,  
+  **OTLP** is the **O**pen**T**e**L**emetry's wire **P**rotocol. Because OTLP is a standard, changing
+  backends is just a config change, not a rewrite. 
   - OTLP has two flavors: HTTP and gRPC, either can be compressed or uncompressed.
-- **Sampling** — keeping every trace from a busy service can be expensive with most vendors, 
-   so it's typical to set a sampling rate to keep only a fraction. It's a tradeoff, the lower the 
+- **Sampling** Keeping every trace from a busy service or a large mobile fleet can be expensive with most 
+   vendors, so it's typical to set a sampling rate to keep only a fraction. It's a tradeoff, the lower the 
    sampling rate, the higher the chance you will miss important information about a user's problem.
-
-
-### API vs SDK, which matters in Dart
-
-OTel splits into two packages, and the split is not bureaucratic:
-
-- `dartastic_opentelemetry_api` — the interfaces you *call*. It does nothing
-  on its own: with no SDK installed, every call is a cheap no-op.
-- `dartastic_opentelemetry` — the SDK that actually records and exports.
-
-**Libraries depend on the API; applications install the SDK.** That way a
-package can be instrumented without forcing telemetry (or a vendor choice) on
-whoever uses it. If the app never initializes an SDK, the instrumentation
-costs nothing. `apps/dinger` in this repo is exactly that case: Genkit is
-instrumented against the API, and the app decides where the data goes.
+   [Dartastic Hosted Observatory](https://dartastic.io/observatory) allows greater sampling and more accurate
+   troubleshooting by pricing observability backends by the size of the box, not the typical set of metrics 
+   large observability vendors use price by the bytes of data transferred.
 
 ### What good looks like
 
-Three habits separate useful telemetry from expensive noise, and the demo
-follows all three:
+Three habits separate useful telemetry from expensive noise, and the demo follows all three:
 
-1. **Bounded cardinality.** Span names and metric labels must come from a
-   small fixed set. `GET /weather/{city}` is a good span name; `GET
-   /weather/Boston` is a new time series per city and will bankrupt your
-   backend.
-2. **Conventional names.** `server.address`, not `host`, `hostname`, or
-   `srv`. The demo uses generated enums so the compiler catches drift.
-3. **Errors on the span.** A caught exception recorded on the span, with the
-   status set, is what makes a trace searchable for failures.
+1. **Bounded cardinality.** Span names and metric labels must come from a small fixed set. `GET /weather/{city}` 
+   is a good span name; `GET /weather/Boston` creates a new time series per city, exploding the amount of data.
+   and make analysis difficult.
 
-The next section shows how each of these is implemented here, and where to
-copy it from.
 
 ## OpenTelemetry Patterns
 
