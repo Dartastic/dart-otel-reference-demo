@@ -7,22 +7,31 @@ A reference implementation for use of the [Dartastic OpenTelemetry SDK][sdk] dem
 - Dart CloudRun functions
 - Dart Cloud Functions (Firebase Functions in Dart)
 
-[Dartastic.io](https://dartastic.io) offers an extended commercial version of the demo with pro OTel features 
-including:
-- Improved performance via a Native Dartastic Opentelemetry implementation
-- Automatic personal information scrubbing
+## Commercial Demo
+
+[Dartastic.io](https://dartastic.io) offers an extended commercial version of the demo with [Dartastic Native Pro OTel]- [Dartastic Observatory](https://dartastic.io/otel)
+features including:
 - Native error capture
 - Janky widget identification
-- Conversion of binary production errors into human readable source code line via Dartastic Symbolizer
-- Dartastic Hosted - o11y stacks specialized for Flutter and Dart 
+- Automatic personal information scrubbing
+- Improved performance via a Native Dartastic Opentelemetry implementation
+- [Dartastic Observatory](https://dartastic.io/observatory) o11y stacks specialized for Flutter and Dart
+  - Dashboards utilizing attributes beyond the OpenTelemetry specification.
+  - Demo with links that open the dashboard related to the demo.
+- [Dartastic Symbolizer](https://dartastic.io/symbolizer) conversion of binary production errors into human-readable 
+  source code lines.
 
-## How It Works
+To access the demo, sign in to [Dartastic.io](https://dartastic.io) and access it from the top of the "Reference Demo" 
+link at the top of your Dashboard.
 
-The demos can run against on OTel backend.  It comes with local docker observability container running Grafana `lgtm` 
-- Loki, Grafana, Tempo, Mimir - that accepts OTel on the standard default ports, 
-- started via `tool/stack.sh up`.  
+## How The Demo Works
 
-Examples also run as Cloud Functions and in CloudRun. See the 
+These demos can run against on OTel backend.  Instructions show how to run a local docker observability container 
+using Grafana `lgtm` - Loki (logs), Grafana (dashboards/UI), Tempo (Traces), and Mimir (Metrics). 
+- THe stack is started via `tool/stack.sh up`
+- The stack accepts OTel on the standard default ports.
+
+Some examples also run as Cloud Functions and in CloudRun. See the 
 [Cloud Run README](./deploy/cloudrun/README.md) and
 [Cloud Functions Gen 2 README](./deploy/functions/README.md), respectively.  Both ship deployment scripts for 
 `weather-api` and `cache-service` with production-grade IAM-locked service-to-service auth, and recommend
@@ -33,16 +42,18 @@ this README is the practical documentation of the demos overall.
 
 ## Distributed Tracing CLI Demo
 
-Distributed tracing is the most powerful tool of OTel. A single traceId spans from 
+Distributed tracing is the most powerful tool of OTel. A single trace spans from 
 a client application (Flutter, CLI, web page) to the backend, through the services
 that handle the request and back to the client.  Each step adding information about
 how the request was handled.  
 
-The system is a contrived weather service that mimics a simple but real
-service with CLI and Flutter clients. A request flows client → `weather-api`
-→ `cache-service` → the external Open-Meteo API, producing a trace four hops
-deep (five when the traced nginx edge fronts `weather-api` in the local
-stack). `weather-api` geocodes and fetches the forecast through
+The demo system is a weather service that mimics a simple but real
+service with CLI and Flutter clients. The request flows is
+client → `weather-api` → `cache-service` → the external Open-Meteo API, 
+producing a trace four hops deep (five when the traced nginx edge fronts `weather-api` 
+in the local stack). 
+
+The `weather-api` geocodes and fetches the forecast through
 `cache-service`, which serves from cache or calls Open-Meteo on a miss.
 
 The demo features production-grade best practices:
