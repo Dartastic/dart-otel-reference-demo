@@ -98,18 +98,22 @@ The content API does hand back direct `.mp4`/HLS URLs; playing them in-app is
 technically possible but is a rights/ToS risk, so it's intentionally not done
 here. (For a strictly private demo you could, at your own risk.)
 
-## Dependency note (why the path/git deps)
+## Dependency note (why there is a git dep)
 
 The published `genkit` on pub.dev still uses Workiva's `opentelemetry`. The
-Dartastic swap lives in the local Genkit clone, so `pubspec.yaml` uses:
+Dartastic swap lives in a fork, so `pubspec.yaml` takes `genkit` and
+`genkit_google_genai` from that fork by **git ref, pinned to a commit** —
+pinned rather than tracking a branch so a build is reproducible, and a git
+ref rather than a path so this builds from a clean clone instead of only on
+a machine that happens to have the fork checked out next door.
 
-- `genkit` + `genkit_google_genai` via **path** to `../genkit-dart`, and
-- a `dependency_overrides` pin of `dartastic_opentelemetry` to the
-  `feat/late-binding-proxies` branch (the beta has unreleased late-binding
-  fixes Genkit relies on).
+Everything else, including `dartastic_opentelemetry` itself, resolves from
+pub.dev. The fork used to need overrides pointing the SDK and API at
+in-flight branches, because Genkit called APIs that were never published;
+that code now runs on the published SDK, and those branches are gone.
 
-Once a Genkit release ships the Dartastic dependency and those fixes publish,
-this becomes a clean pub.dev `flutter pub get`.
+Once a Genkit release ships the Dartastic dependency, the git ref goes away
+and this becomes a plain pub.dev `flutter pub get`.
 
 ## What to screenshot for the blog
 

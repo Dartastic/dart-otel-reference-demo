@@ -1,60 +1,79 @@
 # Dart OTel Reference Demo
 
-A reference implementation for use of the [Dartastic OpenTelemetry SDK][sdk] demonstrating well-instrumented:
-- Dart server applications,
+A reference implementation of the [Dartastic OpenTelemetry SDK][sdk],
+demonstrating well-instrumented:
+- Dart server applications
 - Dart CLIs
 - Flutter apps
-- Dart CloudRun functions
+- Dart services on Cloud Run
 - Dart Cloud Functions (Firebase Functions in Dart)
 
 ## Commercial Demo
 
-[Dartastic.io](https://dartastic.io) offers an extended commercial version of the demo with [Dartastic Native Pro OTel]- [Dartastic Observatory](https://dartastic.io/otel)
-features including:
+[Dartastic.io](https://dartastic.io) offers an extended commercial version
+of this demo, built on [Dartastic Native OTel](https://dartastic.io/otel),
+with features including:
 - Native error capture
 - Janky widget identification
 - Automatic personal information scrubbing
-- Improved performance via a Native Dartastic Opentelemetry implementation
+- Improved performance via a native Dartastic OpenTelemetry implementation
 - [Dartastic Observatory](https://dartastic.io/observatory) o11y stacks specialized for Flutter and Dart
   - Dashboards utilizing attributes beyond the OpenTelemetry specification.
   - Demo with links that open the dashboard related to the demo.
 - [Dartastic Symbolizer](https://dartastic.io/symbolizer) conversion of binary production errors into human-readable 
   source code lines.
 
-To access the demo, sign in to [Dartastic.io](https://dartastic.io) and access it from the top of the "Reference Demo" 
-link at the top of your Dashboard.
+To access it, sign in to [Dartastic.io](https://dartastic.io) and use the
+"Reference Demo" link at the top of your Dashboard.
 
 ## How The Demo Works
 
-These demos can run against on OTel backend.  Instructions show how to run a local docker observability container 
-using Grafana `lgtm` - Loki (logs), Grafana (dashboards/UI), Tempo (Traces), and Mimir (Metrics). 
-- THe stack is started via `tool/stack.sh up`
-- The stack accepts OTel on the standard default ports.
+These demos run against any OTel backend. The instructions show how to run
+a local observability stack in Docker using Grafana's `otel-lgtm` image:
+Loki (logs), Grafana (dashboards/UI), Tempo (traces), and Prometheus
+(metrics).
+- The stack is started via `tool/stack.sh up`
+- The stack accepts OTLP on the standard default ports.
 
-Some examples also run as Cloud Functions and in CloudRun. See the 
+Some examples also run as Cloud Functions and on Cloud Run. See the 
 [Cloud Run README](./deploy/cloudrun/README.md) and
-[Cloud Functions Gen 2 README](./deploy/functions/README.md), respectively.  Both ship deployment scripts for 
+[Cloud Functions Gen 2 README](./deploy/functions/README.md), respectively. Both ship deployment scripts for 
 `weather-api` and `cache-service` with production-grade IAM-locked service-to-service auth, and recommend
 Google Cloud Operations (Cloud Trace + Cloud Logging + Cloud Monitoring) as the telemetry backend. 
 
-For the design rationale and the choices behind these patterns, see [DESIGN.md](./DESIGN.md);
-this README is the practical documentation of the demos overall.
+For the design rationale and the choices behind these patterns, see
+[DESIGN.md](./DESIGN.md); this README is the practical documentation of the
+demos overall.
 
 ## Distributed Tracing CLI Demo
 
-Distributed tracing is the most powerful tool of OTel. A single trace spans from 
-a client application (Flutter, CLI, web page) to the backend, through the services
-that handle the request and back to the client.  Each step adding information about
-how the request was handled.  
+Distributed tracing is the most powerful tool of OTel. A single trace spans
+from a client application (Flutter, CLI, web page) to the backend, through
+the services that handle the request and back to the client, with each step
+adding information about how the request was handled.
 
-The demo system is a weather service that mimics a simple but real
-service with CLI and Flutter clients. The request flows is
-client → `weather-api` → `cache-service` → the external Open-Meteo API, 
-producing a trace four hops deep (five when the traced nginx edge fronts `weather-api` 
-in the local stack). 
+The demo system is a weather service that mimics a simple but real service
+with CLI and Flutter clients. Answering "what is the weather in Boston?"
+takes **two** lookups, not one, so a request fans out rather than travelling
+a single line:
 
-The `weather-api` geocodes and fetches the forecast through
-`cache-service`, which serves from cache or calls Open-Meteo on a miss.
+```text
+weather_cli ─▶ weather-api ─┬─▶ cache-service ─▶ geocoding-api.open-meteo.com   city → coordinates
+                            └─▶ cache-service ─▶ api.open-meteo.com             coordinates → forecast
+```
+
+`weather-api` first geocodes the city, then fetches the forecast for those
+coordinates. Both calls go through `cache-service`, which serves from cache
+or calls Open-Meteo on a miss. The two are cached independently — keyed on
+`(query, maxResults)` and `(cityId, forecastDays)` — so repeating a request
+hits both caches, while asking for the same city with a different
+`--days` hits the geocode cache and misses the forecast one. They also hit
+two different Open-Meteo services, which is why you see two distinct
+upstream spans.
+
+Either branch is four hops deep (five when the traced nginx edge fronts
+`weather-api` in the local stack), and both branches belong to the same
+trace, so the whole fan-out arrives as one tree rather than two.
 
 The demo features production-grade best practices:
 - A `weather_client` SDK that implements `WeatherProvider` over HTTP —
@@ -63,9 +82,9 @@ The demo features production-grade best practices:
   demonstrating the symmetry between the demo's services and a
   caller-side library.
 - A **Flutter web/wasm client** ([`apps/weather_flutter`](./apps/weather_flutter/README.md))
-  that originates the trace from a user tap. Dartastic SDK
-  run unchanged in the browser.
--  Wire format swaps on `kDebugMode`: **debug builds use OTLP/HTTP-
+  that originates the trace from a user tap. The Dartastic SDK runs
+  unchanged in the browser.
+- Wire format swaps on `kDebugMode`: **debug builds use OTLP/HTTP-
    JSON** on every signal so OTLP payloads are readable JSON in DevTools;
    **release builds use protobuf** so end users don't see telemetry
    contents in their browser.
@@ -74,7 +93,7 @@ The demo features production-grade best practices:
   Flutter span is the root of a five-level trace tree.
 - The standard OTel HTTP server semantic conventions: a
   `http.server.request.duration` histogram with bounded labels, plus
-  full HTTP semconv attributes on every server span.  API Semantic enums
+  full HTTP semconv attributes on every server span. API semantic enums
   are used, letting the compiler ensure key strings are consistent 
   ('host.name' not 'hostname' via `dartastic_opentelemetry_api`'s `Host.hostName`).
 - Usage of `BatchSpanProcessor` for efficiency.
@@ -91,18 +110,17 @@ The demo features production-grade best practices:
   (cache hits vs Open-Meteo round trips) that pops out at any
   meaningful traffic volume.
 - A testing strategy that uses the **real** OTel SDK against an
-    in-memory exporter — no mocking the SDK. See
-    [Testing strategy](#testing-strategy).
-
-
+  in-memory exporter — no mocking the SDK. See
+  [Testing strategy](#testing-strategy).
 - A **Genkit AI demo** ([`apps/dinger`](./apps/dinger/README.md)) —
   "Dinger", a baseball-highlights app where Google's Genkit (with
   Workiva's OpenTelemetry swapped out for **Dartastic**) pulls live
   MLB stats and writes recaps. It showcases Genkit **tool-calling +
   structured output**, and because Genkit runs on Dartastic, the flow,
   the model call, and the tool's live MLB fetch all appear as one trace
-  in the same LGTM/Grafana stack. Depends on a local `genkit-dart` clone 
-  via path until Genkit ships the Dartastic dep on pub.dev.
+  in the same stack. It depends on a fork of Genkit by pinned git ref —
+  the one with Dartastic wired in — so it builds from a clean clone; that
+  moves to a pub.dev version once Genkit ships the Dartastic dep.
 
 ## Quick start
 
