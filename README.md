@@ -212,6 +212,9 @@ weather_flutter/weather_cli ─▶ nginx ─▶ weather-api ─▶ cache-service
                                                                          42.36, -71.06 → 3-day forecast
 ```
 
+Every arrow above is a span, and they all share one trace id, so the whole request arrives in the Grafana UI as a
+single tree five levels deep.
+
 1. The **client** (Flutter or the CLI) calls the server on port 8080.
 2. **nginx** proxies the weather-api.  Since it is configured with the [ngx_otel_module](https://nginx.org/en/docs/ngx_otel_module.html), 
    it starts an nginx-edge span and forwards traceparent. This is done to demonstrate that OTel works across many disparate systems.  
@@ -226,9 +229,6 @@ weather_flutter/weather_cli ─▶ nginx ─▶ weather-api ─▶ cache-service
        coordinates.  The weather result is cached and returned to the weather-api.
 6. The **weather-api** returns the weather to the client.
 7. The weather result is displayed but the client, through nginx.
-
-Every arrow above is a span, and they all share one trace id, so the whole request arrives in the Grafana UI as a 
-single tree five levels deep.
 
 Note that the OTel Collector which has CORS configured to allow local calls  (`deploy/local/otelcol-config.yaml`).
 
@@ -253,15 +253,56 @@ This script brings up:
 Once started, leave it running to watch the stack stream the logs.
 Run other commands in a second terminal window.
 
-### 2. Test the Weather API.
+### **2. Run the Flutter client.** 
 
-In a second terminal, request a forecast from the `weather-api`.
+Same weather service, but the trace now starts from a tap in a Flutter app instead of the CLI.   
+This uses Flutter Web and chrome for portability and ease.
+```sh
+cd apps/weather_flutter && flutter run -d chrome
+```
+
+When the client launches, click "Get weather"
+
+![flutter-web-boston-weather.png](flutter-web-boston-weather.png)
+
+
+### 3. Open Grafana and View The Traces
+
+Open [local Grafana ↗](http://localhost:3000/) at `http://localhost:3000/`  in your browser.
+![grafana-local-home.png](grafana-local-home.png)
+
+Click on Traces. You should see one trace. If you don't see it right away, wait a minute or
+two.  Try hitting the refresh button. ![grafana-refresh-button.png](grafana-refresh-button.png)
+
+![grafana-test-traces.png](grafana-test-traces.png)
+
+Notice that the 
+
+Click on Traces (#) Tab
+![grafana-test-traces-button.png](grafana-test-traces-button.png)
+
+You will see a table with three traces.
+![grafana-traces-table.png](grafana-traces-table.png)
+
+Click the weather-flutter trace link to see the full trace.
+![grafana-weather-flutter-trace-popin.png](grafana-weather-flutter-trace-popin.png)
+
+Click on the Log icon next to span.  
+![grafana-span-logs.png)](grafana-span-logs.png)
+
+Expand the log lines to see the Resource Attributes for the span. 
+
+![grafana-span-log-resources.png](grafana-span-log-resources.png)
+
+### Having Trouble
+
+If things are not working, you can test the `weather-api` with `curl`.
 
 ```sh
 curl -s 'http://localhost:8080/weather/Boston?days=3' | jq .
 ```
 
-You request should return something similar to this:
+Your request should return something similar to this:
 ```json
 {
   "city": {
@@ -281,40 +322,6 @@ You request should return something similar to this:
     "temperatureCelsius": 17.8,
     ...
 ```
-
-### **4. Run the Flutter client.** 
-
-Same weather service, but the trace now starts from a tap in a Flutter app instead of the CLI.   
-This uses Flutter Web and chrome for portability and ease.
-```sh
-cd apps/weather_flutter && flutter run -d chrome
-```
-
-When the client launches, click "Get weather"
-
-![flutter-web-boston-weather.png](flutter-web-boston-weather.png)
-
-
-### 4. Open Grafana and View The Traces
-
-Open [local Grafana ↗](http://localhost:3000/) at `http://localhost:3000/`  in your browser.
-![grafana-local-home.png](grafana-local-home.png)
-
-Click on Traces. You should see one trace. If you don't see it right away, wait a minute or
-two.  Try hitting the refresh button. ![grafana-refresh-button.png](grafana-refresh-button.png)
-
-![grafana-test-traces.png](grafana-test-traces.png)
-
-Notice that the 
-
-Click on Traces (#) Tab
-![grafana-test-traces-button.png](grafana-test-traces-button.png)
-
-You will see a table with three traces.
-![grafana-traces-table.png](grafana-traces-table.png)
-
-Click the weather-flutter trace link.
-![grafana-weather-flutter-trace-pop-in.png](grafana-weather-flutter-trace-pop-in.png)
 
 
 

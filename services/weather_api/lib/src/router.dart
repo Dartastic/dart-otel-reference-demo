@@ -40,10 +40,10 @@ const int maxForecastDays = 16;
 /// router itself (e.g., a 404 from an unmatched path is still an
 /// observable event). CORS sits outside the OTel middleware so
 /// preflight `OPTIONS` requests don't pollute the trace tree with a
-/// span per request — a deliberate choice; browsers send a preflight
-/// per cross-origin request and treating each as an independent
-/// observable event would inflate metrics and trace volume without
-/// adding signal.
+/// span per request. On the local stack nginx answers OPTIONS itself
+/// and does not trace them (`deploy/local/nginx/nginx.conf`); this
+/// middleware still matters for Cloud Run / `tool/run.sh`, which
+/// have no nginx in front.
 Handler buildWeatherApiPipeline({required WeatherService service}) {
   final router = _buildRouter(service, service.provider);
   return const Pipeline()

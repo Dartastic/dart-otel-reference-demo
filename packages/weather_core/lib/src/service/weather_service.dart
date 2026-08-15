@@ -75,6 +75,7 @@ class WeatherService {
     // set Error automatically, and the catches only annotate metrics.
     try {
       return await tracer.withSpanAsync(span, () async {
+        _log.info('getForecast city=$cityName days=$forecastDays');
         final geocoded = await _provider.geocode(cityName);
         if (geocoded.isEmpty) {
           span.addEvent(

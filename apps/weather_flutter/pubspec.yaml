@@ -46,6 +46,11 @@ dependencies:
   device_info_plus: ^13.0.0
 
   logging: ^1.3.0
+
+  # Same bridge the servers use — package:logging → OTel logs with
+  # the active span's trace_id / span_id so Grafana's span log icon
+  # can jump to the Flutter line.
+  otel_logging: ^0.1.0-beta.1
 dev_dependencies:
   # Same lint set as every other workspace package — the
   # Dart-and-Flutter-team's own `dart_flutter_team_lints`. Aligns with
