@@ -197,8 +197,8 @@ demos overall.
 The demo is a small weather service with CLI and Flutter clients.
 
 The Open-Meteo forecast API does not accept city names, it accepts coordinates. So two Open-Meteo web APIs are used:
-- The Open-Mateo Geocoding API is used to look up the coordinates for "Boston", getting back its latitude and longitude.
-- The Open-Mateo Weather API is used to look up the weather for the geo coordinates.
+- The Open-Meteo Geocoding API is used to look up the coordinates for "Boston", getting back its latitude and longitude.
+- The Open-Meteo Weather API is used to look up the weather for the geo coordinates.
 
 Both the geo and weather results are cached by the cache-service.
 
@@ -212,20 +212,25 @@ weather_flutter/weather_cli ─▶ nginx ─▶ weather-api ─▶ cache-service
                                                                          42.36, -71.06 → 3-day forecast
 ```
 
-1. The **client** (CLI, Flutter or `curl`) calls the server.
-2. **nginx** fronts the server, which has CORS configured to allow local calls  (`deploy/local/otelcol-config.yaml`).
-3. The **weather-api** orchestrates all the server calls and caching.  
-4. The **cache-service** is called to get the coordinates of the Boston.
-5. If the coordinates are not found in the cache, Open-Meteo's **Geocoding API** is called to get them.
-6. The **weather-api** caches the geo coordinates result.
-7. The **weather-api** calls the **cache-service** again for the weather for the coordinates.
-8. If the weather is not found for the coordinates in the cache, Open-Meteo's **Weather API** is called to get the weather.
-9. The **weather-api** caches the weather result and returns the weather to the client.
+1. The **client** (Flutter or the CLI) calls the server on port 8080.
+2. **nginx** proxies the weather-api.  Since it is configured with the [ngx_otel_module](https://nginx.org/en/docs/ngx_otel_module.html), 
+   it starts the server-side span. This is done to demonstrate that OTel works across many disparate systems.  
+3. The **weather-api** orchestrates the ``GET /weather/:city`` calls.  
+4. The **cache-service** is called to get the coordinates of the city, `GET /v1/geocode`.  
+   4a. If the coordinates are found in the cache, it returns them.  
+   4b. If the coordinates is not found in the cache, Open-Meteo's **Geocoding API** is called to get the coordinates for  
+       the city.  The geocoding result is cached and returned to the weather-api.
+5. The **weather-api** calls the **cache-service** again to get the weather for the coordinates `POST /v1/forecast`.  
+   5a. If the weather result is found in the cache, it returns it.  
+   5b. If the weather is not found in the cache, Open-Meteo's **Forecast API** is called to get the weather the    
+       coordinates.  The weather result is cached and returned to the weather-api.
+6. The **weather-api** returns the weather to the client.
+7. The weather result is displayed but the client, through nginx.
 
-Every arrow above is a span, and they all share one trace id, so the whole
-request arrives in the UI as a single tree you can expand — four levels
-deep, or five when the traced nginx edge sits in front of `weather-api` in
-the local stack.
+Every arrow above is a span, and they all share one trace id, so the whole request arrives in the Grafana UI as a 
+single tree five levels deep.
+
+Note that the OTel Collector which has CORS configured to allow local calls  (`deploy/local/otelcol-config.yaml`).
 
 ## Quick Start
 
