@@ -96,11 +96,10 @@ Router _buildRouter(WeatherService service, WeatherProvider upstream) {
     return Response.ok('ok\n');
   });
 
-  // v1 wire-format pass-throughs. weather_cli talks the v1 contract
-  // (packages/weather_client/README.md) to THIS service so its trace
-  // tree spans three hops: cli → weather_api → cache_service. No
-  // caching here — cache_service owns the cache; these routes exist to
-  // put weather_api's server + client spans on the path.
+  // v1 wire-format pass-throughs. weather-api itself uses WeatherClient
+  // against cache-service's v1 endpoints. These routes stay on this
+  // service so anything that speaks the v1 contract can hit the public
+  // front door. The CLI and Flutter clients use GET /weather/:city.
   router.get('/v1/geocode', (Request request) async {
     final query = request.url.queryParameters['q']?.trim() ?? '';
     if (query.isEmpty) {

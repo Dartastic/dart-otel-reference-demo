@@ -2,6 +2,7 @@
 // Copyright 2026, Mindful Software LLC.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -9,7 +10,6 @@ import 'package:args/args.dart';
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
-import 'package:weather_client/weather_client.dart';
 import 'package:weather_core/weather_core.dart';
 import 'package:weather_http_kit/weather_http_kit.dart';
 import 'package:weather_otel/weather_otel.dart';
@@ -138,15 +138,6 @@ Future<int> runWeatherCli(
     tracerName: 'weather_cli.http',
   );
 
-  // WeatherClient is the v1 SDK. Implements WeatherProvider, so it can
-  // drop into anything else that wants a remote provider — including,
-  // notably, weather_api's own outbound path. Same code, two consumers.
-  final client = WeatherClient(
-    baseUrl: upstream,
-    client: outboundClient,
-    providerName: 'weather-api',
-  );
-
   // Build baggage entries that the BaggageSpanProcessor will copy
   // onto every span across the trace — including spans emitted by
   // weather-api and cache-service after the W3C baggage propagator
@@ -207,29 +198,12 @@ Future<int> runWeatherCli(
         .run(() async {
           try {
             log.info('Fetching $days-day forecast for "$city" from $upstream');
-            final geocoded = await client.geocode(city);
-            if (geocoded.isEmpty) {
-              err.writeln('error: no city named "$city" was found');
-              rootSpan.setStatus(.Error, 'city not found');
-              return exitFailure;
-            }
-            final best = geocoded.best;
-            if (geocoded.isAmbiguous) {
-              rootSpan.addEventNow(
-                'geocode.ambiguous',
-                OTel.attributesFromMap(<String, Object>{
-                  'weather.geocode.match_count': geocoded.matches.length,
-                }),
-              );
-              if (!quiet) {
-                err.writeln(
-                  'note: "$city" matched ${geocoded.matches.length} '
-                  'cities; using ${best.name}, ${best.country}',
-                );
-              }
-            }
-            final forecast = await client.getForecast(
-              city: best,
+            // Same public route the Flutter client uses. weather-api
+            // sequences geocode + forecast through cache-service.
+            final forecast = await _getForecast(
+              client: outboundClient,
+              upstream: upstream,
+              city: city,
               forecastDays: days,
             );
             final rendered = asJson
@@ -239,11 +213,11 @@ Future<int> runWeatherCli(
             // Ensure a trailing newline — terminals and pipes both expect it.
             if (!rendered.endsWith('\n')) out.writeln();
             return exitOk;
-          } on WeatherProviderException catch (e, st) {
+          } on _WeatherApiException catch (e, st) {
             rootSpan
               ..recordException(e, stackTrace: st)
-              ..setStatus(.Error, e.toString());
-            err.writeln('error: ${e.kind.name}: ${e.message}');
+              ..setStatus(.Error, e.message);
+            err.writeln('error: ${e.message}');
             return exitFailure;
           } on Object catch (e, st) {
             rootSpan
@@ -304,8 +278,8 @@ ArgParser _buildArgParser() {
 String _usage(ArgParser parser) {
   return 'Usage: weather_cli [options] <city>\n'
       '\n'
-      'Fetches a weather forecast for <city> from a v1 weather API\n'
-      '(by default, weather_api on http://localhost:8080) and prints it.\n'
+      'Fetches a weather forecast for <city> from weather-api\n'
+      '(GET /weather/<city>, same route as the Flutter client).\n'
       '\n'
       'Options:\n'
       '${parser.usage}\n'
@@ -314,6 +288,61 @@ String _usage(ArgParser parser) {
       '  weather_cli Boston\n'
       '  weather_cli --days 7 "New York"\n'
       '  weather_cli --json --quiet Tokyo | jq .city.name';
+}
+
+/// Hits `GET /weather/<city>?days=N` and decodes the JSON body.
+///
+/// Same public route Flutter uses. Non-2xx responses become a
+/// [_WeatherApiException] with the API's `error` / `message` fields
+/// when present, so a missing city shows up as `notFound: …` rather
+/// than a raw status code.
+Future<WeatherForecast> _getForecast({
+  required http.Client client,
+  required Uri upstream,
+  required String city,
+  required int forecastDays,
+}) async {
+  final uri = upstream.replace(
+    pathSegments: <String>[
+      ...upstream.pathSegments.where((s) => s.isNotEmpty),
+      'weather',
+      city,
+    ],
+    queryParameters: <String, String>{'days': '$forecastDays'},
+  );
+  final response = await client.get(uri);
+  if (response.statusCode != 200) {
+    throw _WeatherApiException(_messageFromResponse(response));
+  }
+  final decoded = jsonDecode(response.body);
+  if (decoded is! Map<String, dynamic>) {
+    throw const FormatException('weather-api returned a non-object body');
+  }
+  return WeatherForecast.fromJson(decoded);
+}
+
+String _messageFromResponse(http.Response response) {
+  try {
+    final decoded = jsonDecode(response.body);
+    if (decoded is Map<String, dynamic>) {
+      final message = decoded['message'];
+      final kind = decoded['error'];
+      if (message is String && message.isNotEmpty) {
+        if (kind is String && kind.isNotEmpty) return '$kind: $message';
+        return message;
+      }
+    }
+  } on Object {
+    // Fall through to the status-code fallback.
+  }
+  return 'weather-api returned ${response.statusCode}';
+}
+
+class _WeatherApiException implements Exception {
+  _WeatherApiException(this.message);
+  final String message;
+  @override
+  String toString() => message;
 }
 
 void _configureLogging({required bool quiet}) {

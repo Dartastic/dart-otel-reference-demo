@@ -1,7 +1,8 @@
 // Licensed under the Apache License, Version 2.0.
 // Copyright 2026, Mindful Software LLC.
 
-/// Command-line client for the demo's v1 weather API.
+/// Command-line client for the demo's public weather API
+/// (`GET /weather/<city>`).
 ///
 /// The deployable binary lives at `bin/weather.dart`. This library
 /// exports the pure formatters and the entry function so tests can

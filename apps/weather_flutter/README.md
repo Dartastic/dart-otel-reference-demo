@@ -32,8 +32,7 @@ originates in the user's tap and flows all the way through.
 - A single Flutter Material screen — `TextField` for the city,
   button to fetch, a card showing current conditions and a 3-day
   forecast.
-- Uses `weather_client` (the same Dart-side HTTP client SDK
-  consumed by `weather_api` and `weather_cli`) unchanged.
+- Calls the public `GET /weather/<city>` route.
 - Wires the Dartastic OpenTelemetry SDK directly: `OTel.initialize`,
   a manually started root span around the user's tap, and
   `InstrumentedHttpClient` for trace-context propagation on every

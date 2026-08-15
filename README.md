@@ -214,7 +214,7 @@ weather_flutter/weather_cli ─▶ nginx ─▶ weather-api ─▶ cache-service
 
 1. The **client** (Flutter or the CLI) calls the server on port 8080.
 2. **nginx** proxies the weather-api.  Since it is configured with the [ngx_otel_module](https://nginx.org/en/docs/ngx_otel_module.html), 
-   it starts the server-side span. This is done to demonstrate that OTel works across many disparate systems.  
+   it starts an nginx-edge span and forwards traceparent. This is done to demonstrate that OTel works across many disparate systems.  
 3. The **weather-api** orchestrates the ``GET /weather/:city`` calls.  
 4. The **cache-service** is called to get the coordinates of the city, `GET /v1/geocode`.  
    4a. If the coordinates are found in the cache, it returns them.  

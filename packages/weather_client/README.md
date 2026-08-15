@@ -8,9 +8,9 @@ Used by:
 
 - **`services/weather_api`** — as the upstream provider passed to
   `WeatherService`, when configured to call `cache_service` (the demo's
-  default deployment shape).
-- **`apps/weather_cli`** — for direct CLI access to `cache_service`
-  during throughput demos and one-off lookups.
+  default deployment shape). The CLI and Flutter clients call the
+  public `GET /weather/<city>` route instead; they do not use this
+  package.
 
 ## v1 wire-format contract
 

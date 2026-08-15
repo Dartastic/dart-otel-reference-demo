@@ -40,6 +40,7 @@
 # Cities rotate through a fixed list of varied geographies — picked
 # so cache hit ratio is interesting (some hits, some misses) and
 # Open-Meteo's geocoder doesn't trivially short-circuit them all.
+# Two fake names produce 404 traces for the error mix.
 
 set -euo pipefail
 
@@ -59,6 +60,9 @@ BIN=""
 # generate a mix of cache hits and misses. The list intentionally
 # repeats some entries so cache-hit dynamics show up after the first
 # pass through the list.
+# Real cities produce cache hits after the first pass. The last two
+# names are deliberately unknown so a slice of traces land as 404 /
+# span status Error — that's the error mix the dashboards need.
 CITIES=(
   "Boston"
   "Paris"
@@ -72,6 +76,8 @@ CITIES=(
   "Tokyo"
   "Cape Town"
   "Reykjavik"
+  "Narnia"
+  "Atlantis"
 )
 
 # ── Arg parsing ──
@@ -246,5 +252,6 @@ if [ "$DO_FLUSH" -eq 1 ]; then
   fi
 fi
 
-# Exit non-zero if anything failed — useful in CI as a smoke test.
-[ "$FAIL_COUNT" -eq 0 ]
+# A few cities in the list are fake (Narnia, Atlantis) so some
+# failures are expected. Fail the script only if nothing succeeded.
+[ "$OK_COUNT" -gt 0 ]

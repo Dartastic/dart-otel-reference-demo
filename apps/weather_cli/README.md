@@ -1,9 +1,10 @@
 # weather_cli
 
-Command-line client for the demo's v1 weather API. The third
-deployable binary in the demo and the first non-server — invoking it
-produces a complete distributed trace from the user's terminal all
-the way through `weather_api`, `cache_service`, and Open-Meteo.
+Command-line client for the demo's public weather API. Same route as
+the Flutter app (`GET /weather/<city>`). Invoking it produces a
+complete distributed trace from the terminal through `weather-api`,
+`cache-service`, and Open-Meteo. The swarm script drives many of
+these in parallel.
 
 ## Quick start
 
@@ -25,21 +26,19 @@ dart run apps/weather_cli/bin/weather.dart --json --quiet Tokyo | jq .city.name
 
 When the CLI runs, it initializes the OpenTelemetry SDK via
 `weather_otel.initializeOtel`, opens a single root span called
-`cli.forecast`, then calls `weather_client.WeatherClient.geocode` and
-`getForecast` from inside that span's context. The
-`InstrumentedHttpClient` decorator on the HTTP transport emits a client
-span per outbound request and injects W3C trace context — that is what
-stitches the CLI's root span to `weather_api`'s server span as a
-parent-child link. The trace tree for one invocation is:
+`cli.forecast`, then issues one `GET /weather/<city>` from inside
+that span's context. `InstrumentedHttpClient` emits the client span
+and injects W3C trace context — that is what stitches the CLI's
+root span to `weather-api`'s server span. The trace tree for one
+invocation is:
 
 ```
 cli.forecast (INTERNAL — root)
-  ├── GET   (CLIENT — geocode call to weather_api)
-  │   └── GET /v1/geocode (SERVER — weather_api → cache_service)
-  │       └── ...                            (cache_service → open-meteo on miss)
-  └── POST  (CLIENT — forecast call to weather_api)
-      └── POST /v1/forecast (SERVER — weather_api → cache_service)
-          └── ...                            (cache_service → open-meteo on miss)
+└── GET (CLIENT — weather-api /weather/:city)
+    └── GET /weather/:city (SERVER — weather-api)
+        └── WeatherService.getForecast
+            ├── GET /v1/geocode     (cache-service; Open-Meteo on miss)
+            └── POST /v1/forecast   (cache-service; Open-Meteo on miss)
 ```
 
 Before the process exits, the CLI calls `forceFlush` and then
