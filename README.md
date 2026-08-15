@@ -146,6 +146,7 @@ Because Metrics live in Context, they can be correlated with the Trace that was 
 via **exemplars**.  Exemplars are samples of traces that occurred in the bucket of a histogram, or a value in a gauge 
 or counter.  They enable clicking from a metric point to the traces that fell into that metric point.
 
+
 **Logs** 
 
 Logs are timestamped records of discrete events, usually with a severity level (trace, debug, info, warn, error, fatal).  
@@ -159,7 +160,7 @@ This turns the classic “search through millions of log lines hoping to find th
 one-click correlation between Traces, Metrics and Logs.
 
 **Transport**
-- **Exporters** — the part that ships data out of your process,  
+- **Exporters** — ship telemetry data out to an `OTel Collector`.  
   **OTLP** is the **O**pen**T**e**L**emetry's wire **P**rotocol. Because OTLP is a standard, changing
   backends is just a config change, not a rewrite. 
   - OTLP has two flavors: HTTP and gRPC, either can be compressed or uncompressed.
@@ -170,19 +171,13 @@ one-click correlation between Traces, Metrics and Logs.
    troubleshooting by pricing observability backends by the size of the box, not the typical set of metrics 
    large observability vendors use price by the bytes of data transferred.
 
-### What good looks like
-
-Three habits separate useful telemetry from expensive noise, and the demo follows all three:
-
-1. **Bounded cardinality.** Span names and metric labels must come from a small fixed set. `GET /weather/{city}` 
-   is a good span name; `GET /weather/Boston` creates a new time series per city, exploding the amount of data.
-   and make analysis difficult.
 
 
-## OpenTelemetry Patterns
+## Dart OpenTelemetry Patterns
 
-The patterns the demo establishes — what to copy, why, and where each
-pattern lives in the codebase.
+This reference demo is built to show best practices for implementing
+OpenTelemetry for Dart and Flutter applications.  It has copyable
+examples for humans and AI.
 
 **Trace context propagation.** W3C Trace Context (`traceparent`,
 `tracestate`) on every HTTP boundary, inbound and outbound.
