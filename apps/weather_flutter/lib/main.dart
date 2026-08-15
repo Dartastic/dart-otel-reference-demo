@@ -146,8 +146,7 @@ void main() {
           ),
           endpoint: _defaultOtlpEndpoint,
           // TLS follows the endpoint scheme rather than a hardcoded flag,
-          // so pointing this at an https collector just works. Same rule
-          // as apps/dinger/lib/telemetry.dart.
+          // so pointing this at an https collector just works.
           secure: _defaultOtlpEndpoint.startsWith('https'),
           spanProcessor: BatchSpanProcessor(spanExporter),
           metricExporter: metricExporter,

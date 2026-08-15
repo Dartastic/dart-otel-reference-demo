@@ -4,7 +4,7 @@
 # Grafana LGTM.  nginx (ngx_otel_module) emits its own traces, so the
 # waterfall starts at the front door.
 #
-# What "LGTM" means: Loki (logs), Grafana (UI), Tempo (traces), Mimir
+# What "LGTM" means: Loki (logs), Grafana (UI), Tempo (traces), Prometheus
 # (metrics). The grafana/otel-lgtm image bundles all four behind a
 # single OpenTelemetry Collector listening on the standard OTLP ports.
 # It's intended for development and demos — production observability

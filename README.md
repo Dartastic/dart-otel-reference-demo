@@ -59,9 +59,12 @@ identity. That is the key to OpenTelemetry.
   - **Logs** - Timestamped records of discrete events with a level.  
     They answer the question “what exactly happened at this moment?”
 
-**Context** - A bag of values that travels with the current execution. It primarily carries information about a Trace, 
+**Context** 
+
+Context is a bag of values that travels with the current execution. It primarily carries information about a Trace, 
 but Logs and Metrics also read from it.    
-Context is how the three Signals stay correlated. 
+Context is how the three Signals stay correlated.
+
   - **Context propagation** — How trace information crosses execution boundaries. The W3C defines
   the `traceparent` HTTP header to carry context information between processes communicating via HTTP. Context is also propagated in other ways. For example, from one Dart isolate to another or from a 
   Flutter Widget into JavaScript running inside it's child WebView. These are handled this transparently by `dartastic_opentelemety`.
@@ -94,6 +97,8 @@ Context is how the three Signals stay correlated.
     | `Geo.geoCountryIsoCode` | 'geo.country.iso_code' | ISO Country Code                 |
   
   - **AI understands the Semantic Conventions, making runtime analysis with AI very productive.**
+  
+
 - **Resource Attributes** are special attributes describing *what is emitting*, not what happened. The values are 
   computed once at initialization, then attached to everything.
   
@@ -172,198 +177,132 @@ one-click correlation between Traces, Metrics and Logs.
    large observability vendors use price by the bytes of data transferred.
 
 
-
-## Dart OpenTelemetry Patterns
-
-This reference demo is built to show best practices for implementing
-OpenTelemetry for Dart and Flutter applications.  It has copyable
-examples for humans and AI.
-
-**Trace context propagation.** W3C Trace Context (`traceparent`,
-`tracestate`) on every HTTP boundary, inbound and outbound.
-Implemented once in `weather_http_kit` middleware and the instrumented
-HTTP client; reused by every service and the CLI.
-
-**Baggage.** W3C Baggage propagation alongside trace context. The
-bootstrap registers a `BaggageSpanProcessor` so baggage entries become
-span attributes automatically — searchable in any backend without
-manual enrichment. Demo entries: `cli.run_id`, `cli.session_id`.
-
-**Sampling.** Default is `ParentBasedSampler(TraceIdRatioSampler(arg))`
-so upstream sampling decisions are honored. The demo ships at 100%
-sampling (`OTEL_TRACES_SAMPLER_ARG=1.0`); production guidance for
-tuning is in the deploy READMEs.
-
-**Span processor.** `BatchSpanProcessor` everywhere. Production-grade
-defaults: `scheduleDelay: 1s`, `maxQueueSize: 2048`,
-`maxExportBatchSize: 512`. The same configuration applies in
-serverless: Functions Gen 2 sits on Cloud Run and receives `SIGTERM`
-~10 seconds before instance shutdown, which is more than enough for a
-tuned batch processor to drain.
-
-**Shutdown.** `ProcessSignal.sigterm.watch()` is registered at app
-boot and calls `OTel.shutdown()`, which force-flushes processors and
-closes exporters. There is no flush code anywhere in the request hot
-path. The only spans that can be lost are from `SIGKILL` — and you
-cannot trace your way out of a hard crash regardless of language or
-telemetry stack.
-
-**Resource attributes.** Full semantic-convention coverage per
-deployment target: `service.*`, `deployment.environment`,
-`cloud.provider`, `cloud.platform`, `cloud.region`, `faas.*` for
-Functions (`faas.name`, `faas.version`, `faas.instance`,
-`faas.coldstart`), `host.*` for local, `container.*` where
-applicable. Resource detection is automatic with manual overrides
-via env.
-
-**Cardinality discipline.** High-cardinality attributes (city name,
-query parameters, error messages, full URLs) belong on **spans**,
-where storage cost is bounded by the trace itself. Low-cardinality
-attributes (`country`, `http.route`, `http.method`,
-`http.status_code`, cache result class) belong on **metrics**, where
-every unique combination becomes a separate time series. We never
-put raw user IDs, request IDs, or city names on metrics. This rule
-is enforced by helper functions in `weather_http_kit` and pinned by
-a guardrail test on every metric in the demo.
-
-**Logs.** `package:logging` integrated with the OTel logs SDK. Log
-records carry the active trace ID and span ID for one-click
-correlation. Log volume is itself a metric.
-
-**Errors.** Every caught exception in instrumented code calls
-`span.recordException(e, stackTrace: s)` and
-`span.setStatus(SpanStatusCode.error, ...)`. The recorded
-`exception.stacktrace` attribute is what the trace backend (Tempo,
-Cloud Trace) renders for the on-call to debug from.
-
-**Golden signals + extras.** Standard RED (Rate, Errors, Duration)
-plus saturation proxies (in-flight requests), dependency health
-(Open-Meteo success rate), cache effectiveness (hit / miss / stale
-ratios), cold-start histograms (Functions only), and cost-relevant
-metrics (upstream API call counter — people pay per call).
-
-## How The Demo Works
+## How The Weather Demo Works
 
 These demos run against any OTel backend. The instructions show how to run
 a local observability stack in Docker using Grafana's `otel-lgtm` image:
 Loki (logs), Grafana (dashboards/UI), Tempo (traces), and Prometheus
 (metrics).
-- The stack is started via `tool/stack.sh up`
-- The stack accepts OTLP on the standard default ports.
 
-Some examples also run as Cloud Functions and on Cloud Run. See the 
+Some examples also run as Cloud Functions and on Cloud Run. See the
 [Cloud Run README](./deploy/cloudrun/README.md) and
-[Cloud Functions Gen 2 README](./deploy/functions/README.md), respectively. Both ship deployment scripts for 
+[Cloud Functions Gen 2 README](./deploy/functions/README.md), respectively. Both ship deployment scripts for
 `weather-api` and `cache-service` with production-grade IAM-locked service-to-service auth, and recommend
-Google Cloud Operations (Cloud Trace + Cloud Logging + Cloud Monitoring) as the telemetry backend. 
+Google Cloud Operations (Cloud Trace + Cloud Logging + Cloud Monitoring) as the telemetry backend.
 
 For the design rationale and the choices behind these patterns, see
 [DESIGN.md](./DESIGN.md); this README is the practical documentation of the
 demos overall.
 
-## Distributed Tracing CLI Demo
+The demo is a small weather service with CLI and Flutter clients.
 
-Here is a trace, in the concrete. The demo is a small weather service with
-CLI and Flutter clients, and one request crosses four processes — which is
-exactly the situation that makes tracing worth the trouble.
+The Open-Meteo forecast API does not accept city names, it accepts coordinates. So two Open-Meteo web APIs are used:
+- The Open-Mateo Geocoding API is used to look up the coordinates for "Boston", getting back its latitude and longitude.
+- The Open-Mateo Weather API is used to look up the weather for the geo coordinates.
 
-Answering "what is the weather in Boston?" takes two steps, because the
-Open-Meteo forecast API does not accept city names — it accepts
-coordinates:
+Both the geo and weather results are cached by the cache-service.
 
-1. **Geocode**: look up "Boston" and get back its latitude and longitude.
-2. **Forecast**: ask for the forecast *at those coordinates*.
-
-Step 2 needs the answer from step 1, so they happen in order:
+Answering "what is the weather in Boston?" takes multiple hops:
 
 ```text
-weather_cli ─▶ weather-api ─▶ cache-service ─▶ geocoding-api.open-meteo.com
-                    │                          "Boston" → 42.36, -71.06
-                    │
-                    └────────▶ cache-service ─▶ api.open-meteo.com
-                                               42.36, -71.06 → 3-day forecast
+weather_flutter/weather_cli ─▶ nginx ─▶ weather-api ─▶ cache-service ─▶ geocoding-api.open-meteo.com
+                                              │                          "Boston" → 42.36, -71.06
+                                              │
+                                              └────────▶ cache-service ─▶ api.open-meteo.com
+                                                                         42.36, -71.06 → 3-day forecast
 ```
 
-Both calls go through `cache-service`, which answers from memory when it
-can and only calls Open-Meteo on a miss. The two answers are cached
-separately: the coordinates under the city name, the forecast under the
-city id plus the number of days. So asking for Boston twice hits both
-caches, while asking for Boston with a different `--days` reuses the cached
-coordinates and re-fetches only the forecast.
+1. The **client** (CLI, Flutter or `curl`) calls the server.
+2. **nginx** fronts the server, which has CORS configured to allow local calls  (`deploy/local/otelcol-config.yaml`).
+3. The **weather-api** orchestrates all the server calls and caching.  
+4. The **cache-service** is called to get the coordinates of the Boston.
+5. If the coordinates are not found in the cache, Open-Meteo's **Geocoding API** is called to get them.
+6. The **weather-api** caches the geo coordinates result.
+7. The **weather-api** calls the **cache-service** again for the weather for the coordinates.
+8. If the weather is not found for the coordinates in the cache, Open-Meteo's **Weather API** is called to get the weather.
+9. The **weather-api** caches the weather result and returns the weather to the client.
 
 Every arrow above is a span, and they all share one trace id, so the whole
 request arrives in the UI as a single tree you can expand — four levels
 deep, or five when the traced nginx edge sits in front of `weather-api` in
 the local stack.
 
-## Demo Features
-
-The demo features production-grade best practices:
-- A `weather_client` SDK that implements `WeatherProvider` over HTTP —
-  the same package is consumed by both `weather_api` (calling
-  `cache_service`) and `weather_cli` (calling `weather_api`),
-  demonstrating the symmetry between the demo's services and a
-  caller-side library.
-- A **Flutter web/wasm client** ([`apps/weather_flutter`](./apps/weather_flutter/README.md))
-  that originates the trace from a user tap. The `dartastic_opentelemetry`
-  SDK runs unchanged in the browser.
-- Wire format swaps on `kDebugMode`: **debug builds use OTLP/HTTP-JSON**
-  on every signal so OTLP payloads are readable JSON in DevTools;
-  **release builds use protobuf** so end users don't see telemetry
-  contents in their browser.
-- Propagated W3C Trace Context and Baggage: The same `InstrumentedHttpClient` used server-side
-  propagates W3C trace context across the HTTP boundary so the
-  Flutter span is the root of a five-level trace tree.
-- The standard OTel HTTP server Semantic Conventions: a
-  `http.server.request.duration` histogram with bounded labels, plus
-  full HTTP semconv attributes on every server span. API Semantic enums
-  are used, letting the compiler ensure key strings are consistent 
-  ('host.name' not 'hostname' via `dartastic_opentelemetry_api`'s `Host.hostName`).
-- Usage of `BatchSpanProcessor` for efficiency.
-- `SIGTERM`-driven graceful shutdown
-- Parent-based sampling.
-- Route-template span names for bounded cardinality
-- Span timing is sub-millisecond via the API's `WebTimeProvider` (auto-selected at
-  compile time on web targets — routes through `performance.now() +
-  timeOrigin` for ~5–100µs precision instead of `Date.now()`'s
-  millisecond floor). 
-- A swarm runner (`load/run_swarm.sh`) that spawns N parallel CLI
-  invocations and force-flushes the SDK before exit, plus a bundled
-  Grafana dashboard whose latency heatmap shows the bimodal pattern
-  (cache hits vs Open-Meteo round trips) that pops out at any
-  meaningful traffic volume.
-- A testing strategy that uses the **real** OTel SDK against an
-  in-memory exporter — no mocking the SDK. See
-  [Testing strategy](#testing-strategy).
-
-## Dinger Demo
-A **Genkit AI demo** ([`apps/dinger`](./apps/dinger/README.md)) —
-  "Dinger", a baseball-highlights app where Google's Genkit (with
-  Workiva's OpenTelemetry swapped out for **dartastic_opentelemetry**) pulls live
-  MLB stats and writes recaps. It showcases Genkit **tool-calling +
-  structured output**, and because Genkit runs on Dartastic, the flow,
-  the model call, and the tool's live MLB fetch all appear as one trace
-  in the same stack. It depends on a fork of Genkit by pinned git ref —
-  the one with `dartastic_opentelemetry` wired in — so it builds from a
-  clean clone; that moves to a pub.dev version once Genkit ships
-  `dartastic_opentelemetry`.
-
 ## Quick Start
 
-**1. Start everything.** This one command brings up `weather-api`,
-`cache-service`, and the local observability stack in Docker. Give it a
-moment the first time — it pulls images.
+### 1. Start the stack.
 
 ```sh
 tool/stack.sh up
 ```
 
-**2. Send a request.** In a second terminal, ask for Boston's forecast. This
-is the request that produces the trace described above.
+This brings up the Docker compose file: `./deploy/local/docker-compose.yml`  
+Be patient while it pulls images the first time.
+
+This script brings up:
+- The `nginx` edge with nginx OTel module
+- Services
+  - `weather-api`
+  - `cache-service`
+- The local `grafana-lgtm` observability stack in Docker.
+
+Once started, leave it running to watch the stack stream the logs.
+Run other commands in a second terminal window.
+
+### 2. Test the Weather API.
+
+In a second terminal, request a forecast from the `weather-api`.
 
 ```sh
 curl -s 'http://localhost:8080/weather/Boston?days=3' | jq .
 ```
+
+You request should return something similar to this:
+```json
+{
+  "city": {
+    "id": 4930956,
+    "name": "Boston",
+    "latitude": 42.35843,
+    "longitude": -71.05977,
+    "country": "United States",
+    "countryCode": "US",
+    "admin1": "Massachusetts",
+    "timezone": "America/New_York",
+    "population": 653833,
+    "elevationMeters": 14.0
+  },
+  "current": {
+    "observedAt": "2026-08-15T07:45:00.000",
+    "temperatureCelsius": 17.8,
+    ...
+```
+
+### **4. Run the Flutter client.** 
+
+Same weather service, but the trace now starts from a tap in a Flutter app instead of the CLI.   
+This uses Flutter Web and chrome for portability and ease.
+```sh
+cd apps/weather_flutter && flutter run -d chrome
+```
+
+When the client launches, click "Get weather"
+
+![flutter-web-boston-weather.png](flutter-web-boston-weather.png)
+
+
+### 4. Open Grafana and View The Traces
+
+Open [local Grafana ↗](http://localhost:3000/) at `http://localhost:3000/`  in your browser.
+![grafana-local-home.png](grafana-local-home.png)
+
+Click on Traces. You should see one trace. If you don't see it right away, wait a minute or
+two.  Try hitting the refresh button. ![grafana-refresh-button.png](grafana-refresh-button.png)
+
+![grafana-test-trace.png](grafana-test-trace.png)
+
+Notice that the 
+
+
 
 **3. Make some traffic.** One request makes one trace, which is a thin
 dashboard. This fires 500 requests, 25 at a time, so there is enough data to
@@ -373,13 +312,6 @@ see patterns.
 load/run_swarm.sh --total 500 --parallel 25
 ```
 
-**4. Run the Flutter client.** Same weather service, but the trace now
-starts from a tap in a Flutter app instead of the CLI. Chrome is the target
-because it behaves the same on macOS, Linux and Windows.
-
-```sh
-cd apps/weather_flutter && flutter run -d chrome
-```
 
 **5. Look at the telemetry.** Browse to <http://localhost:3000> and sign in
 with `admin` / `admin`, then open **Dashboards → Dart OTel Demo → Service
@@ -410,8 +342,7 @@ services/
 apps/
   weather_cli          instrumented caller, swarmable
   weather_flutter      Flutter web/wasm client; trace originates in a user tap
-  dinger               Genkit AI baseball-highlights demo (Genkit on Dartastic);
-                       self-contained, not a workspace member
+  
 load/
   run_swarm.sh         spawns N CLI instances for throughput demos
 dashboards/
@@ -752,8 +683,8 @@ Two things travel on those arrows, and they are different:
 Both are W3C standards, not Dartastic inventions, which is why the same
 headers work against any OTel backend.
 
-[OpenTelemetry patterns](#opentelemetry-patterns) above says how each of
-these is implemented and where to copy it from.
+[OpenTelemetry Usage in the Demo](#opentelemetry-usage-in-the-demo) above
+says how each of these is implemented and where to copy it from.
 
 ## Local development workflow
 

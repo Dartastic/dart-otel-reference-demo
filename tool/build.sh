@@ -59,7 +59,7 @@ step() { printf '\n==> %s\n' "$1"; }
 # Workspace members from the root pubspec's `workspace:` list. Splitting on
 # Flutter membership lets `dart test`/`dart format` handle the pure-Dart
 # members while Flutter apps go through `flutter test`. Adding a member to
-# the workspace list is all that's needed — no edits here. (apps/dinger is
+# the workspace list is all that's needed — no edits here. (apps is
 # deliberately NOT a workspace member — it carries path deps outside the
 # repo — so it is never swept.)
 DART_MEMBERS=()

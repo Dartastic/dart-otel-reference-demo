@@ -30,7 +30,7 @@ jobs:
 
       # Flutter carries the Dart SDK, so one install serves the Flutter
       # apps and the pure-Dart packages, services and CLI alike.
-      # apps/dinger needs Dart >= 3.12, which is why this tracks stable
+      # apps needs Dart >= 3.12, which is why this tracks stable
       # rather than pinning an older release.
       - uses: subosito/flutter-action@v2
         with:
@@ -44,13 +44,6 @@ jobs:
       # member package, service and app in the `workspace:` list.
       - name: Resolve workspace
         run: flutter pub get
-
-      # apps/dinger is deliberately NOT a workspace member (standalone, and
-      # it needs a newer Dart floor), so it resolves separately. It pulls
-      # genkit from a public git ref, so CI can fetch it like anyone else.
-      - name: Resolve dinger
-        run: flutter pub get
-        working-directory: apps/dinger
 
       # Zero lints, info level included.
       - name: Analyze
@@ -86,13 +79,6 @@ jobs:
       - name: Build weather_flutter (web)
         run: flutter build web --release
         working-directory: apps/weather_flutter
-
-      # dinger earns its own build step: analyze and test both pass on it
-      # while dart2js fails, because a whole-program compile is what
-      # catches an API its dependency does not actually expose.
-      - name: Build dinger (web)
-        run: flutter build web --release
-        working-directory: apps/dinger
 
       # AOT-compile the servers and the CLI. `dart analyze` does not catch
       # everything the AOT compiler rejects.
