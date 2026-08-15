@@ -303,9 +303,18 @@ Open [local Grafana ↗](http://localhost:3000/) at `http://localhost:3000/`  in
 Click on Traces. You should see one trace. If you don't see it right away, wait a minute or
 two.  Try hitting the refresh button. ![grafana-refresh-button.png](grafana-refresh-button.png)
 
-![grafana-test-trace.png](grafana-test-trace.png)
+![grafana-test-traces.png](grafana-test-traces.png)
 
 Notice that the 
+
+Click on Traces (#) Tab
+![grafana-test-traces-button.png](grafana-test-traces-button.png)
+
+You will see a table with three traces.
+![grafana-traces-table.png](grafana-traces-table.png)
+
+Click the weather-flutter trace link.
+![grafana-weather-flutter-trace-pop-in.png](grafana-weather-flutter-trace-pop-in.png)
 
 
 
