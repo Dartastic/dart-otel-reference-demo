@@ -1,5 +1,8 @@
 # Dart OTel Reference Demo
 
+![grafana-weather-flutter-trace-popin.png](grafana-weather-flutter-trace-popin.png)
+
+
 A reference implementation of the [`dartastic_opentelemetry`][sdk] SDK,
 demonstrating well-instrumented:
 - Dart server applications
