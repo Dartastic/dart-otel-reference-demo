@@ -247,6 +247,13 @@ Middleware otelMiddleware({
           try {
             final response = await innerHandler(request);
             observedStatusCode = response.statusCode;
+            // One line while this server span is current so Grafana's
+            // span → logs jump has something to join (trace_id +
+            // span_id). City names stay out — they belong on the span.
+            log.info(
+              '${request.method} ${route ?? request.requestedUri.path} '
+              '→ ${response.statusCode}',
+            );
             span.addAttributes(
               OTel.attributesOf<Http>({
                 .httpResponseStatusCode: response.statusCode,

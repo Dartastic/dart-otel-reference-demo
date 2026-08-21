@@ -48,6 +48,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
+import 'package:otel_logging/otel_logging.dart';
 import 'package:weather_core/weather_core.dart';
 import 'package:weather_http_kit/weather_http_kit.dart';
 
@@ -152,6 +153,7 @@ void main() {
           metricExporter: metricExporter,
           logRecordProcessor: BatchLogRecordProcessor(logExporter),
         );
+        PackageLoggingBridge.install();
       } catch (error, stack) {
         log.severe('OTel.initialize failed', error, stack);
         runApp(InitFailureApp(error: error, stack: stack));
@@ -347,9 +349,10 @@ class _WeatherHomePageState extends State<WeatherHomePage> {
       // InstrumentedHttpClient's outbound request reads
       // `Context.current` and uses it as the parent — that's the
       // mechanic that links the trace tree across the HTTP boundary.
-      final forecast = await Context.current
-          .withSpan(span)
-          .run(() => _getForecast(city: city, forecastDays: 3));
+      final forecast = await Context.current.withSpan(span).run(() async {
+        Logger('weather_flutter').info('fetchWeather city=$city');
+        return _getForecast(city: city, forecastDays: 3);
+      });
       if (!mounted) return;
       setState(() {
         _forecast = forecast;

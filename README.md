@@ -1,5 +1,8 @@
 # Dart OTel Reference Demo
 
+![grafana-weather-flutter-trace-popin.png](grafana-weather-flutter-trace-popin.png)
+
+
 A reference implementation of the [`dartastic_opentelemetry`][sdk] SDK,
 demonstrating well-instrumented:
 - Dart server applications
@@ -197,8 +200,8 @@ demos overall.
 The demo is a small weather service with CLI and Flutter clients.
 
 The Open-Meteo forecast API does not accept city names, it accepts coordinates. So two Open-Meteo web APIs are used:
-- The Open-Mateo Geocoding API is used to look up the coordinates for "Boston", getting back its latitude and longitude.
-- The Open-Mateo Weather API is used to look up the weather for the geo coordinates.
+- The Open-Meteo Geocoding API is used to look up the coordinates for "Boston", getting back its latitude and longitude.
+- The Open-Meteo Weather API is used to look up the weather for the geo coordinates.
 
 Both the geo and weather results are cached by the cache-service.
 
@@ -212,20 +215,32 @@ weather_flutter/weather_cli ─▶ nginx ─▶ weather-api ─▶ cache-service
                                                                          42.36, -71.06 → 3-day forecast
 ```
 
-1. The **client** (CLI, Flutter or `curl`) calls the server.
-2. **nginx** fronts the server, which has CORS configured to allow local calls  (`deploy/local/otelcol-config.yaml`).
-3. The **weather-api** orchestrates all the server calls and caching.  
-4. The **cache-service** is called to get the coordinates of the Boston.
-5. If the coordinates are not found in the cache, Open-Meteo's **Geocoding API** is called to get them.
-6. The **weather-api** caches the geo coordinates result.
-7. The **weather-api** calls the **cache-service** again for the weather for the coordinates.
-8. If the weather is not found for the coordinates in the cache, Open-Meteo's **Weather API** is called to get the weather.
-9. The **weather-api** caches the weather result and returns the weather to the client.
+Every arrow above is a span, and they all share one trace id, so the whole request arrives in the Grafana UI as a
+single tree five levels deep.
 
-Every arrow above is a span, and they all share one trace id, so the whole
-request arrives in the UI as a single tree you can expand — four levels
-deep, or five when the traced nginx edge sits in front of `weather-api` in
-the local stack.
+1. The **client** (Flutter or the CLI) calls the server on port 8080.
+2. **nginx** fronts the stack as the traced edge.  It is configured with the [ngx_otel_module](https://nginx.org/en/docs/ngx_otel_module.html), 
+   so it starts the trace with an `nginx-edge` span and propagates the W3C `traceparent` header downstream — demonstrating 
+   that OTel works across disparate systems: the trace begins in nginx (C) and continues through Dart services.  
+3. The **weather-api** orchestrates the ``GET /weather/:city`` calls.  
+4. The **cache-service** is called to get the coordinates of the city, `GET /v1/geocode`.  
+   4a. If the coordinates are found in the cache, it returns them.  
+   4b. If the coordinates are not found in the cache, the **cache-service** calls Open-Meteo's **Geocoding API** to get  
+       the coordinates for the city.  The geocoding result is cached and returned to the weather-api.
+5. The **weather-api** calls the **cache-service** again to get the weather for the coordinates `POST /v1/forecast`.  
+   5a. If the weather result is found in the cache, it returns it.  
+   5b. If the weather is not found in the cache, the **cache-service** calls Open-Meteo's **Forecast API** to get the    
+       weather for the coordinates.  The weather result is cached and returned to the weather-api.
+6. The **weather-api** returns the weather to the client, back through nginx.
+7. The client displays the weather.
+
+Browsers add one wrinkle: the Flutter web client is served from its own origin, so it makes two kinds of
+cross-origin calls, each with its own CORS configuration:
+- **Calling the API** — the weather-api sets permissive CORS headers itself (see `_corsMiddleware` in
+  `services/weather_api/lib/src/router.dart`), including allowing the `traceparent`, `tracestate` and `baggage`
+  headers so trace context propagation survives the browser's preflight.  nginx just passes these headers through.
+- **Sending telemetry** — the OTel Collector's OTLP HTTP receiver has CORS configured in
+  `deploy/local/otelcol-config.yaml` so the browser can POST spans to `:4318`.
 
 ## Quick Start
 
@@ -248,15 +263,56 @@ This script brings up:
 Once started, leave it running to watch the stack stream the logs.
 Run other commands in a second terminal window.
 
-### 2. Test the Weather API.
+### **2. Run the Flutter client.** 
 
-In a second terminal, request a forecast from the `weather-api`.
+Same weather service, but the trace now starts from a tap in a Flutter app instead of the CLI.   
+This uses Flutter Web and chrome for portability and ease.
+```sh
+cd apps/weather_flutter && flutter run -d chrome
+```
+
+When the client launches, click "Get weather"
+
+![flutter-web-boston-weather.png](flutter-web-boston-weather.png)
+
+
+### 3. Open Grafana and View The Traces
+
+Open [local Grafana ↗](http://localhost:3000/) at `http://localhost:3000/`  in your browser.
+![grafana-local-home.png](grafana-local-home.png)
+
+Click on Traces. You should see one trace. If you don't see it right away, wait a minute or
+two.  Try hitting the refresh button. ![grafana-refresh-button.png](grafana-refresh-button.png)
+
+![grafana-test-traces.png](grafana-test-traces.png)
+
+Notice that the 
+
+Click on Traces (#) Tab
+![grafana-test-traces-button.png](grafana-test-traces-button.png)
+
+You will see a table with three traces.
+![grafana-traces-table.png](grafana-traces-table.png)
+
+Click the weather-flutter trace link to see the full trace.
+![grafana-weather-flutter-trace-popin.png](grafana-weather-flutter-trace-popin.png)
+
+Click on the Log icon next to span.  
+![grafana-span-logs.png)](grafana-span-logs.png)
+
+Expand the log lines to see the Resource Attributes for the span. 
+
+![grafana-span-log-resources.png](grafana-span-log-resources.png)
+
+### Having Trouble
+
+If things are not working, you can test the `weather-api` with `curl`.
 
 ```sh
 curl -s 'http://localhost:8080/weather/Boston?days=3' | jq .
 ```
 
-You request should return something similar to this:
+Your request should return something similar to this:
 ```json
 {
   "city": {
@@ -276,31 +332,6 @@ You request should return something similar to this:
     "temperatureCelsius": 17.8,
     ...
 ```
-
-### **4. Run the Flutter client.** 
-
-Same weather service, but the trace now starts from a tap in a Flutter app instead of the CLI.   
-This uses Flutter Web and chrome for portability and ease.
-```sh
-cd apps/weather_flutter && flutter run -d chrome
-```
-
-When the client launches, click "Get weather"
-
-![flutter-web-boston-weather.png](flutter-web-boston-weather.png)
-
-
-### 4. Open Grafana and View The Traces
-
-Open [local Grafana ↗](http://localhost:3000/) at `http://localhost:3000/`  in your browser.
-![grafana-local-home.png](grafana-local-home.png)
-
-Click on Traces. You should see one trace. If you don't see it right away, wait a minute or
-two.  Try hitting the refresh button. ![grafana-refresh-button.png](grafana-refresh-button.png)
-
-![grafana-test-trace.png](grafana-test-trace.png)
-
-Notice that the 
 
 
 

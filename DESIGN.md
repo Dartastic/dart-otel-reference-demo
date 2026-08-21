@@ -42,9 +42,9 @@ Three places where what shipped differs from the original design intent:
   and document; curl is everywhere.
 - **`weather_client` SDK package** wasn't in the original design —
   it emerged when `weather_api` needed to call `cache_service` over
-  HTTP via the same `WeatherProvider` interface. It's now used by
-  both `weather_api → cache_service` and `weather_cli → weather_api`,
-  which is a better story than was originally planned.
+  HTTP via the same `WeatherProvider` interface. The CLI and Flutter
+  clients hit the public `GET /weather/:city` route instead; only
+  `weather_api → cache_service` uses `WeatherClient`.
 - **Cardinality discipline** is enforced by the metric attribute
   helper and a pinned test, not by type signatures (the design
   overstated this). The test catches accidental additions; type

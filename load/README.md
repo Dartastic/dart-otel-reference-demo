@@ -45,13 +45,15 @@ when present.
 
 ### Cities
 
-Rotates through a fixed list of 12 cities chosen so:
+Rotates through a fixed list of cities chosen so:
 
 - Cache hit ratio is interesting (some hits, some misses — the list
   intentionally repeats some entries, so cache dynamics show up
   after the first pass).
 - Open-Meteo's geocoder doesn't trivially short-circuit (varied
   geographies).
+- A couple of names (`Narnia`, `Atlantis`) are fake, so the run
+  includes 404 / Error traces for the dashboards.
 
 To override, edit the `CITIES` array in the script — it's near the
 top, designed to be tweaked without restructuring anything.
@@ -83,12 +85,13 @@ After running the swarm against the local stack, open Grafana at
 http://localhost:3000 (admin / admin), then:
 
 - **Explore → Tempo** — search `service.name=weather-api`. Pick any
-  trace; you should see the four-deep tree (cli.forecast → weather_api
-  server → cache-service server → open-meteo on miss). Compare a
-  trace from the first half of the run against one from the second
-  half — the second-half traces should mostly show
+  successful trace; you should see `cli.forecast` → `GET /weather/:city`
+  → cache-service geocode + forecast (Open-Meteo only on a miss).
+  Compare a trace from the first half of the run against one from the
+  second half — the second-half traces should mostly show
   `weather.cache.outcome=hit` on the cache-service server span, with
-  the open-meteo client span gone.
+  the open-meteo client span gone. A few names in the swarm list
+  (`Narnia`, `Atlantis`) are fake so you also get 404 / Error traces.
 - **Explore → Tempo → Service Graph** — emerges from the trace
   data. Should show three nodes (weather-api, cache-service, the
   external open-meteo) with edges sized by request volume.

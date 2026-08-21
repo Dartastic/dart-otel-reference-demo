@@ -259,6 +259,7 @@ void _annotateActiveSpan({
     }),
   );
   span.addEventNow('cache.${outcome.name}');
+  _log.info('cache $namespace ${outcome.name} size=$cacheSize');
 
   // Same outcome, second pillar: a counter incrementing once per
   // lookup. Span attribute is the high-cardinality, per-trace view

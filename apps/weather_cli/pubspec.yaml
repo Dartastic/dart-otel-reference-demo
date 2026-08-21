@@ -1,10 +1,9 @@
 name: weather_cli
 description: >-
-  Command-line client for the demo's v1 weather API. Speaks to
-  weather_api (or, in tests, anything that implements the same v1
-  wire format) and prints a forecast. The third deployable binary in
-  the demo and the first non-server — closes the trace tree from a
-  user-initiated CLI invocation all the way to Open-Meteo.
+  Command-line client for the demo's public weather API. Calls
+  GET /weather/<city> — the same route as the Flutter client — and
+  prints a forecast. The swarmable binary that closes the trace
+  tree from a user-initiated invocation through to Open-Meteo.
 version: 0.1.0
 publish_to: none
 resolution: workspace
@@ -15,8 +14,6 @@ environment:
 dependencies:
   weather_core:
     path: ../../packages/weather_core
-  weather_client:
-    path: ../../packages/weather_client
   weather_http_kit:
     path: ../../packages/weather_http_kit
   weather_otel:

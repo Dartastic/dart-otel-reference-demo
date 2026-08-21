@@ -3,6 +3,7 @@
 
 import 'package:dartastic_opentelemetry/dartastic_opentelemetry.dart';
 import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
 
 /// An [http.Client] decorator that emits a `SpanKind.client` span for every
 /// outbound request, injects W3C trace context and baggage into the
@@ -34,6 +35,7 @@ class InstrumentedHttpClient extends http.BaseClient {
 
   final http.Client _inner;
   final String _tracerName;
+  static final Logger _log = Logger('weather_http_kit.http');
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
@@ -66,6 +68,7 @@ class InstrumentedHttpClient extends http.BaseClient {
       return await injectionContext.run(() async {
         try {
           final response = await _inner.send(request);
+          _log.info('${request.method} ${request.url} → ${response.statusCode}');
           span.addAttributes(
             OTel.attributesOf<Http>({
               .httpResponseStatusCode: response.statusCode,
