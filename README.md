@@ -888,6 +888,13 @@ These are demo-time conveniences. They never run in a production deployment.
 - **Pre-built Grafana dashboard JSON** in `dashboards/grafana/`,
   auto-loaded into the local stack's Grafana container.
 
+## Error handling (planned)
+
+[ERROR_HANDLING.md](ERROR_HANDLING.md) is the implementation brief for
+demonstrating the OTel error-handling contract (`OTel.setErrorHandler`,
+strict mode, isolate propagation) — gated on the next
+`dartastic_opentelemetry_api` / SDK releases.
+
 ## Quick links
 
 - [DESIGN.md](./DESIGN.md) — architectural rationale and design decisions
