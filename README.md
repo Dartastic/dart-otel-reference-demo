@@ -219,21 +219,28 @@ Every arrow above is a span, and they all share one trace id, so the whole reque
 single tree five levels deep.
 
 1. The **client** (Flutter or the CLI) calls the server on port 8080.
-2. **nginx** proxies the weather-api.  Since it is configured with the [ngx_otel_module](https://nginx.org/en/docs/ngx_otel_module.html), 
-   it starts an nginx-edge span and forwards traceparent. This is done to demonstrate that OTel works across many disparate systems.  
+2. **nginx** fronts the stack as the traced edge.  It is configured with the [ngx_otel_module](https://nginx.org/en/docs/ngx_otel_module.html), 
+   so it starts the trace with an `nginx-edge` span and propagates the W3C `traceparent` header downstream — demonstrating 
+   that OTel works across disparate systems: the trace begins in nginx (C) and continues through Dart services.  
 3. The **weather-api** orchestrates the ``GET /weather/:city`` calls.  
 4. The **cache-service** is called to get the coordinates of the city, `GET /v1/geocode`.  
    4a. If the coordinates are found in the cache, it returns them.  
-   4b. If the coordinates is not found in the cache, Open-Meteo's **Geocoding API** is called to get the coordinates for  
-       the city.  The geocoding result is cached and returned to the weather-api.
+   4b. If the coordinates are not found in the cache, the **cache-service** calls Open-Meteo's **Geocoding API** to get  
+       the coordinates for the city.  The geocoding result is cached and returned to the weather-api.
 5. The **weather-api** calls the **cache-service** again to get the weather for the coordinates `POST /v1/forecast`.  
    5a. If the weather result is found in the cache, it returns it.  
-   5b. If the weather is not found in the cache, Open-Meteo's **Forecast API** is called to get the weather the    
-       coordinates.  The weather result is cached and returned to the weather-api.
-6. The **weather-api** returns the weather to the client.
-7. The weather result is displayed but the client, through nginx.
+   5b. If the weather is not found in the cache, the **cache-service** calls Open-Meteo's **Forecast API** to get the    
+       weather for the coordinates.  The weather result is cached and returned to the weather-api.
+6. The **weather-api** returns the weather to the client, back through nginx.
+7. The client displays the weather.
 
-Note that the OTel Collector which has CORS configured to allow local calls  (`deploy/local/otelcol-config.yaml`).
+Browsers add one wrinkle: the Flutter web client is served from its own origin, so it makes two kinds of
+cross-origin calls, each with its own CORS configuration:
+- **Calling the API** — the weather-api sets permissive CORS headers itself (see `_corsMiddleware` in
+  `services/weather_api/lib/src/router.dart`), including allowing the `traceparent`, `tracestate` and `baggage`
+  headers so trace context propagation survives the browser's preflight.  nginx just passes these headers through.
+- **Sending telemetry** — the OTel Collector's OTLP HTTP receiver has CORS configured in
+  `deploy/local/otelcol-config.yaml` so the browser can POST spans to `:4318`.
 
 ## Quick Start
 
