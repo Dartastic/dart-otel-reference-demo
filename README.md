@@ -154,6 +154,13 @@ Because Metrics live in Context, they can be correlated with the Trace that was 
 via **exemplars**.  Exemplars are samples of traces that occurred in the bucket of a histogram, or a value in a gauge 
 or counter.  They enable clicking from a metric point to the traces that fell into that metric point.
 
+> **Not in this demo yet.** Exemplar support is still landing in
+> `dartastic_opentelemetry`, so the histogram panels here have no trace
+> links to click. The backend half is already in place — the local
+> stack runs Prometheus with exemplar storage enabled and Grafana is
+> provisioned to jump from an exemplar straight to the trace in Tempo —
+> so the panels light up on their own once the SDK emits them.
+
 
 **Logs** 
 
@@ -303,6 +310,49 @@ Click on the Log icon next to span.
 Expand the log lines to see the Resource Attributes for the span. 
 
 ![grafana-span-log-resources.png](grafana-span-log-resources.png)
+
+### 4. Make some traffic and view the Metrics
+
+One tap makes one trace, which is a thin dashboard. This fires 500
+requests, 25 at a time, so the metrics have a shape worth looking at:
+
+```sh
+load/run_swarm.sh --total 500 --parallel 25
+```
+
+Then open the **Dart OTel Demo → Service Overview** dashboard
+([local link ↗](http://localhost:3000/d/dart-otel-demo-service-overview)).
+It is built entirely from the metrics the demo emits — no traces:
+
+- **Request rate, error rate, p95** — the RED trio, from the
+  `http.server.request.duration` histogram the shelf middleware
+  records on every request.
+- **Latency p50 / p95 / p99 per service** — the same histogram, by
+  service and route template.
+- **weather-api latency heatmap** — the one to look at. It goes
+  **bimodal** under load: a fast band where `cache-service` answered
+  from memory, and a slow band where the request went out to
+  Open-Meteo. That split is invisible in any single trace and obvious
+  in the distribution — the reason to emit metrics *and* traces
+  rather than choosing.
+
+The heatmap needs volume to separate, which is why the swarm comes
+first. Run it again and watch the fast band thicken as the cache
+warms.
+
+> **Give it a minute.** Unlike traces, metrics are not flushed on
+> demand: the SDK exports on a fixed cadence
+> (`OTEL_METRIC_EXPORT_INTERVAL`, 60 s by default), so a dashboard
+> opened the instant the swarm finishes can still be empty. Panels
+> that stay empty for more than two minutes are worth investigating;
+> before that, wait.
+
+Every metric here is deliberately **low-cardinality** — labelled by
+route template, never by city or request id — and that discipline is
+pinned by tests (see
+[Cardinality discipline](./DESIGN.md#cardinality-discipline--the-load-bearing-decision)); adding
+a high-cardinality label makes the suite fail rather than quietly
+multiplying series in production.
 
 ### Having Trouble
 
@@ -672,7 +722,7 @@ between backends.**
 
 ## System architecture
 
-The request path from [Distributed Tracing CLI Demo](#distributed-tracing-cli-demo),
+The request path from [How The Weather Demo Works](#how-the-weather-demo-works),
 drawn as the deployment stack — who calls whom, and what rides on each hop:
 
 ```
@@ -714,7 +764,7 @@ Two things travel on those arrows, and they are different:
 Both are W3C standards, not Dartastic inventions, which is why the same
 headers work against any OTel backend.
 
-[OpenTelemetry Usage in the Demo](#opentelemetry-usage-in-the-demo) above
+[What's Contained in this Reference](#whats-contained-in-this-reference) above
 says how each of these is implemented and where to copy it from.
 
 ## Local development workflow

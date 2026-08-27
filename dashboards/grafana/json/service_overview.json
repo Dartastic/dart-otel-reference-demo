@@ -70,7 +70,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count[5m])), 1)",
+          "expr": "100 * (sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_request_duration_seconds_count[5m])), 1)",
           "legendFormat": "error %",
           "datasource": { "type": "prometheus", "uid": "prometheus" }
         }
