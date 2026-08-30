@@ -68,7 +68,9 @@ class InstrumentedHttpClient extends http.BaseClient {
       return await injectionContext.run(() async {
         try {
           final response = await _inner.send(request);
-          _log.info('${request.method} ${request.url} → ${response.statusCode}');
+          _log.info(
+            '${request.method} ${request.url} → ${response.statusCode}',
+          );
           span.addAttributes(
             OTel.attributesOf<Http>({
               .httpResponseStatusCode: response.statusCode,

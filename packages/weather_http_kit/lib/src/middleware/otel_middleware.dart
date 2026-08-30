@@ -308,15 +308,32 @@ Middleware otelMiddleware({
           route: route,
           statusCode: observedStatusCode ?? 500,
         );
-        durationHistogram.record(durationSeconds, metricAttrs);
-        // Cold-start histogram only fires on the first request handled
-        // by this process. Same labels as the regular duration
-        // histogram so the two distributions are comparable in queries
-        // (e.g. PromQL `histogram_quantile` on both with the same
-        // method/route/status_code grouping).
-        if (isColdStart) {
-          coldStartDurationHistogram.record(durationSeconds, metricAttrs);
-        }
+        // Record INSIDE the span's context, not merely after it.
+        //
+        // This is what makes exemplars work. `record()` takes no
+        // Context argument, so the SDK reads `Context.current` — and
+        // the default `TraceBasedExemplarFilter` samples an exemplar
+        // only when that context carries a sampled span. This
+        // `finally` runs after the `withSpan(...).run(...)` zone has
+        // exited, so `Context.current` is bare here and every
+        // measurement would be recorded with no trace to point at.
+        // Re-entering the context is what links each latency bucket
+        // back to a real trace.
+        //
+        // The span is already ended, which is fine: its SpanContext
+        // is still valid and still sampled, and it is precisely the
+        // trace this measurement describes.
+        await inboundContext.withSpan(span).run<void>(() async {
+          durationHistogram.record(durationSeconds, metricAttrs);
+          // Cold-start histogram only fires on the first request handled
+          // by this process. Same labels as the regular duration
+          // histogram so the two distributions are comparable in queries
+          // (e.g. PromQL `histogram_quantile` on both with the same
+          // method/route/status_code grouping).
+          if (isColdStart) {
+            coldStartDurationHistogram.record(durationSeconds, metricAttrs);
+          }
+        });
       }
     };
   };

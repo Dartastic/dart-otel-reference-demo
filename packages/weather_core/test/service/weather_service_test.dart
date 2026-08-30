@@ -126,7 +126,14 @@ void main() {
 
       final span = spans.findSpanByName('WeatherService.getForecast');
       expect(span, isNotNull);
-      expect(span!.status, SpanStatusCode.Ok);
+      // Unset, not Ok: the spec reserves Ok for an explicit
+      // application judgement that an operation succeeded, and says
+      // instrumentation SHOULD leave the status alone otherwise. A
+      // success path therefore ends Unset. (Through beta.14 the SDK
+      // forwarded a null status into the API's end(), whose default
+      // stamped Ok — a spec violation this asserted. Fixed in
+      // beta.15.)
+      expect(span!.status, SpanStatusCode.Unset);
     });
 
     test(

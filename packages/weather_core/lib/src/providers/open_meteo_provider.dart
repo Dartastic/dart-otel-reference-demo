@@ -315,9 +315,7 @@ class OpenMeteoProvider implements WeatherProvider {
       // wraps) so we own the exception path and set the status from the
       // domain exception's clean `.message` rather than its toString().
       return await Context.current.withSpan(span).run(() async {
-        _log.info(
-          'forecast city=${city.name} days=$forecastDays',
-        );
+        _log.info('forecast city=${city.name} days=$forecastDays');
         final body = await _get(uri, span: span, operation: 'forecast');
         final decoded = _decodeJson(body);
         final fetchedAt = DateTime.now().toUtc();

@@ -20,7 +20,8 @@ Future<String?> deviceModelIdentifier() async {
     // On a simulator `utsname.machine` is the HOST arch (x86_64/arm64),
     // which is useless for slicing. The simulator exposes the device it
     // is pretending to be in the environment instead.
-    return Platform.environment['SIMULATOR_MODEL_IDENTIFIER'] ?? ios.utsname.machine;
+    return Platform.environment['SIMULATOR_MODEL_IDENTIFIER'] ??
+        ios.utsname.machine;
   }
   if (Platform.isMacOS) return (await info.macOsInfo).model;
   return null;

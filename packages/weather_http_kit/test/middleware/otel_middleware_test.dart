@@ -41,7 +41,14 @@ void main() {
       final span = spans.findSpanByName('GET');
       expect(span, isNotNull);
       expect(span!.kind, SpanKind.server);
-      expect(span.status, SpanStatusCode.Ok);
+      // Unset, not Ok: the spec reserves Ok for an explicit
+      // application judgement that an operation succeeded, and says
+      // instrumentation SHOULD leave the status alone otherwise. A
+      // success path therefore ends Unset. (Through beta.14 the SDK
+      // forwarded a null status into the API's end(), whose default
+      // stamped Ok — a spec violation this asserted. Fixed in
+      // beta.15.)
+      expect(span.status, SpanStatusCode.Unset);
     });
 
     test('uses route from RouteResolver in span name', () async {
@@ -89,7 +96,7 @@ void main() {
 
         expect(response.statusCode, 400);
         final span = spans.findSpanByName('GET');
-        expect(span!.status, SpanStatusCode.Ok);
+        expect(span!.status, SpanStatusCode.Unset);
       },
     );
 
@@ -223,16 +230,12 @@ void main() {
         final attributeMap = <String, Object?>{
           for (final attr in attributes.toList()) attr.key: attr.value,
         };
-        expect(
-          attributeMap.keys.toSet(),
-          <String>{
-            'http.request.method',
-            'http.route',
-            'http.response.status_code',
-            'url.scheme',
-          },
-          reason: 'metric labels must be the low-cardinality subset only',
-        );
+        expect(attributeMap.keys.toSet(), <String>{
+          'http.request.method',
+          'http.route',
+          'http.response.status_code',
+          'url.scheme',
+        }, reason: 'metric labels must be the low-cardinality subset only');
         expect(attributeMap['http.request.method'], 'GET');
         expect(attributeMap['http.route'], '/weather/:city');
         expect(attributeMap['http.response.status_code'], 200);
