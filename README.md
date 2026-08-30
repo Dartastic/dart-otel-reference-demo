@@ -166,6 +166,13 @@ or counter.  They enable clicking from a metric point to the traces that fell in
 > record the duration, which is exactly what links each latency
 > bucket back to a trace.
 >
+> The same rule means exemplars only exist for measurements taken
+> inside a **sampled** span. This demo samples everything
+> (`samplingRatio: 1.0`), so every bucket can carry one; drop the
+> ratio — or set `OTEL_TRACES_SAMPLER_ARG` — and exemplars thin out
+> proportionally. That reads as "exemplars are flaky" and is in fact
+> the specified behaviour.
+>
 > Note that `OTEL_METRICS_EXEMPLAR_FILTER` does **not** widen this.
 > There are two filters — the recording filter on the MeterProvider
 > (set via `OTel.initialize(exemplarFilter:)`) and an export-time
