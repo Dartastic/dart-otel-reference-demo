@@ -154,12 +154,24 @@ Because Metrics live in Context, they can be correlated with the Trace that was 
 via **exemplars**.  Exemplars are samples of traces that occurred in the bucket of a histogram, or a value in a gauge 
 or counter.  They enable clicking from a metric point to the traces that fell into that metric point.
 
-> **Not in this demo yet.** Exemplar support is still landing in
-> `dartastic_opentelemetry`, so the histogram panels here have no trace
-> links to click. The backend half is already in place — the local
-> stack runs Prometheus with exemplar storage enabled and Grafana is
-> provisioned to jump from an exemplar straight to the trace in Tempo —
-> so the panels light up on their own once the SDK emits them.
+> **This demo emits them.** Requires `dartastic_opentelemetry`
+> 1.1.0-beta.15 or newer, which is what the demo pins. The one thing
+> to get right is *where* you record: `record()` takes no `Context`
+> argument, so the SDK reads `Context.current`, and the default
+> `TraceBasedExemplarFilter` samples an exemplar only when that
+> context carries a sampled span. Recording from a callback, a timer,
+> or after the span's zone has exited silently yields no exemplars
+> with everything else configured perfectly. See
+> `weather_http_kit`'s middleware: it re-enters the span's context to
+> record the duration, which is exactly what links each latency
+> bucket back to a trace.
+>
+> Note that `OTEL_METRICS_EXEMPLAR_FILTER` does **not** widen this.
+> There are two filters — the recording filter on the MeterProvider
+> (set via `OTel.initialize(exemplarFilter:)`) and an export-time
+> filter read from that variable. The variable can only narrow what
+> was already recorded, so setting `always_on` without a span still
+> produces nothing.
 
 
 **Logs** 
@@ -346,6 +358,12 @@ warms.
 > opened the instant the swarm finishes can still be empty. Panels
 > that stay empty for more than two minutes are worth investigating;
 > before that, wait.
+
+**Click a dot on the heatmap.** Each latency bucket carries
+**exemplars** — sampled measurements stamped with the trace that
+produced them — so a slow bucket links straight to the trace that was
+slow. That is the payoff of emitting both signals: the distribution
+tells you *that* the tail exists, and one click tells you *why*.
 
 Every metric here is deliberately **low-cardinality** — labelled by
 route template, never by city or request id — and that discipline is
