@@ -5,6 +5,10 @@ All notable changes to this service are documented here. Format based on
 
 ## [Unreleased]
 
+### Changed
+
+- `dartastic_opentelemetry` 1.1.0-beta.17, on API 1.0.0-rc.4.
+
 ### Added
 - Initial service: caching v1 weather provider. In-memory `TtlCache`
   for both geocode and forecast lookups; cache attribution on the

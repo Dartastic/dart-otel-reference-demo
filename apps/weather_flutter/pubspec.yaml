@@ -32,7 +32,7 @@ dependencies:
   # Dartastic OpenTelemetry SDK. Browser-capable — dart2js and dart2wasm
   # both work against the OTLP HTTP exporter. The barrel re-exports the
   # full API surface, so no direct API dependency is needed.
-  dartastic_opentelemetry: ^1.1.0-beta.15
+  dartastic_opentelemetry: ^1.1.0-beta.17
 
   http: ^1.5.0
 
@@ -50,7 +50,7 @@ dependencies:
   # Same bridge the servers use — package:logging → OTel logs with
   # the active span's trace_id / span_id so Grafana's span log icon
   # can jump to the Flutter line.
-  otel_logging: ^0.1.0-beta.1
+  otel_logging: ^0.3.1
 dev_dependencies:
   # Same lint set as every other workspace package — the
   # Dart-and-Flutter-team's own `dart_flutter_team_lints`. Aligns with

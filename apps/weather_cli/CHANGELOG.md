@@ -6,6 +6,10 @@ All notable changes to this app are documented here. Format based on
 ## [Unreleased]
 
 ### Changed
+
+- `dartastic_opentelemetry` 1.1.0-beta.17, on API 1.0.0-rc.4.
+
+### Changed
 - Revamped the README.md
 - Calls the public `GET /weather/<city>` route (same as Flutter)
   instead of the two-step v1 `WeatherClient` geocode + forecast path.

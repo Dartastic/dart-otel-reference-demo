@@ -83,22 +83,24 @@ Middleware otelMiddleware({
           'semantic conventions). Labels are deliberately low-cardinality '
           'so the series count stays bounded: only http.request.method, '
           'http.route, http.response.status_code, and url.scheme.',
-      boundaries: const [
-        0.005,
-        0.01,
-        0.025,
-        0.05,
-        0.075,
-        0.1,
-        0.25,
-        0.5,
-        0.75,
-        1,
-        2.5,
-        5,
-        7.5,
-        10,
-      ],
+      advisory: const InstrumentAdvisory(
+        explicitBucketBoundaries: [
+          0.005,
+          0.01,
+          0.025,
+          0.05,
+          0.075,
+          0.1,
+          0.25,
+          0.5,
+          0.75,
+          1,
+          2.5,
+          5,
+          7.5,
+          10,
+        ],
+      ),
     );
     // Saturation proxy alongside the RED-style duration histogram.
     // We deliberately exclude `http.response.status_code` from the
@@ -148,22 +150,24 @@ Middleware otelMiddleware({
           'in seconds. Fires once per process. Used to graph cold-start '
           'cost distribution on the dashboard separately from the '
           'general-purpose http.server.request.duration histogram.',
-      boundaries: const [
-        0.005,
-        0.01,
-        0.025,
-        0.05,
-        0.075,
-        0.1,
-        0.25,
-        0.5,
-        0.75,
-        1,
-        2.5,
-        5,
-        7.5,
-        10,
-      ],
+      advisory: const InstrumentAdvisory(
+        explicitBucketBoundaries: [
+          0.005,
+          0.01,
+          0.025,
+          0.05,
+          0.075,
+          0.1,
+          0.25,
+          0.5,
+          0.75,
+          1,
+          2.5,
+          5,
+          7.5,
+          10,
+        ],
+      ),
     );
 
     return (Request request) async {

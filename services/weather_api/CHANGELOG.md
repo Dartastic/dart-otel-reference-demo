@@ -5,6 +5,10 @@ All notable changes to this service are documented here. Format based on
 
 ## [Unreleased]
 
+### Changed
+
+- `dartastic_opentelemetry` 1.1.0-beta.17, on API 1.0.0-rc.4.
+
 ### Added
 - Initial service: HTTP front door composing weather_core,
   weather_http_kit, and weather_otel. Exposes `GET /weather/<city>` and
