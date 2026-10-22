@@ -706,10 +706,6 @@ target you can read or copy from this repo.
      the emit).
   3. The SDK's own diagnostics are never bridged.
 
-  The `otel_` logging wrappers (`otel_logging` and the others) are
-  adding `print`, stdout and stderr capture with these rules built in;
-  once released, installing the wrapper does this for you.
-
 ### Backend selection
 
 - **Backend selection by env var, no code change.** The
