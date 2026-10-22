@@ -744,19 +744,18 @@ target you can read or copy from this repo.
   in debug builds, protobuf in release builds — selected via
   `kDebugMode`); a manually-started root span around the user's
   tap; and `InstrumentedHttpClient` for trace-context propagation
-  on every outbound request. Demonstrates that SDK 1.1.0-beta.12 + API
-  1.0.0-rc.1 work in dart2js AND dart2wasm — five-level trace
+  on every outbound request. Demonstrates that SDK 1.1.0-beta.17 + API
+  1.0.0-rc.4 work in dart2js AND dart2wasm — five-level trace
   tree from the tap through to Open-Meteo, with payloads readable
   in DevTools. **Sub-millisecond span timing** on web comes for
   free: the API's `WebTimeProvider` is selected at compile time
   via `dart.library.js_interop` and routes timestamps through
   `performance.now() + timeOrigin` instead of `Date.now()`'s
-  millisecond floor — no opt-in needed. **Flutterrific
-  OpenTelemetry Pro** (coming as a Dartastic.io Pro package)
-  will replace the manual SDK wiring with navigator-observer
-  spans, route-template extraction, error-boundary widgets, and
-  frame-timing metrics; the demo uses the SDK directly so
-  readers see the mechanics.
+  millisecond floor — no opt-in needed. The demo wires the SDK by
+  hand so readers see the mechanics; for Dart and Flutter apps that
+  want screen views, navigation and frame metrics, crashes and
+  session replay without that wiring, [Dartastic.io](https://dartastic.io)
+  provides them.
 - **Permissive CORS on `weather_api`.** A small middleware
   (`_corsMiddleware` in `services/weather_api/lib/src/router.dart`)
   allows the browser to send the `traceparent`, `tracestate`, and

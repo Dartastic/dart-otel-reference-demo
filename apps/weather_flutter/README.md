@@ -40,12 +40,13 @@ originates in the user's tap and flows all the way through.
 
 ## What it isn't
 
-- A full Flutter integration with the OTel SDK. That story belongs
-  to **[Flutterrific OpenTelemetry][flutterrific]** — automatic
-  navigator-observer spans, route-template extraction, error-
-  boundary widgets, frame-timing metrics, app-lifecycle spans.
-  Those land in `flutterrific_opentelemetry_pro` as part of
-  Dartastic.io Pro.
+- A full Flutter integration with the OTel SDK. The app wires the SDK
+  by hand so you can see the mechanics. **[Flutterrific
+  OpenTelemetry][flutterrific]** adds automatic navigator-observer
+  spans and app-lifecycle spans on the OSS SDK, and
+  [Dartastic.io](https://dartastic.io) provides screen views,
+  navigation and frame metrics, crashes and session replay for Dart
+  and Flutter apps.
 - A polished consumer app. The UI is the simplest possible thing
   that proves the trace works end to end.
 - A Flutter-on-iOS / Android / desktop demo. We deliberately ship
@@ -107,9 +108,9 @@ http://localhost:3000 (admin / admin) → Explore → Tempo.
 
 Two endpoints are hard-coded in `lib/main.dart`:
 
-| Constant | Default | Purpose |
-| -------- | ------- | ------- |
-| `_defaultApiBaseUrl`   | `http://localhost:8080` | weather_api endpoint |
+| Constant               | Default                 | Purpose                   |
+|------------------------|-------------------------|---------------------------|
+| `_defaultApiBaseUrl`   | `http://localhost:8080` | weather_api endpoint      |
 | `_defaultOtlpEndpoint` | `http://localhost:4318` | OTLP HTTP endpoint (LGTM) |
 
 To point at Cloud Operations, Honeycomb, Dartastic Cloud, or any
