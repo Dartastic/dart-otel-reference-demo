@@ -95,18 +95,9 @@ Future<WeatherOtelHandle> initializeOtel({
       (envLookup('WEATHER_DEMO_MODE')?.toLowerCase() ?? '') == 'true';
 
   // Resolve the sampling ratio. Explicit arg > env > default.
-  final resolvedSamplingRatio =
-      samplingRatio ??
-      _parseDouble(envLookup('OTEL_TRACES_SAMPLER_ARG')) ??
-      defaultSamplingRatio;
-
-  if (resolvedSamplingRatio < 0.0 || resolvedSamplingRatio > 1.0) {
-    throw ArgumentError.value(
-      resolvedSamplingRatio,
-      'samplingRatio',
-      'must be between 0.0 and 1.0 inclusive',
-    );
-  }
+  final resolvedSamplingRatio = samplingRatioFor(
+    samplingRatio ?? _parseDouble(envLookup('OTEL_TRACES_SAMPLER_ARG')),
+  );
 
   // Generate the per-process instance id. Using Random.secure() so we
   // do not have to add a uuid dependency for what is fundamentally a
@@ -133,6 +124,17 @@ Future<WeatherOtelHandle> initializeOtel({
         resolvedSamplingRatio,
         logger,
       );
+
+  // Telemetry never throws: the SDK reports what it cannot do (a bad
+  // setting, a failed export) to this handler instead. Installed before
+  // OTel.initialize so nothing initialize reports is missed. It writes to
+  // stderr, never through OpenTelemetry: a report that telemetry is
+  // failing can't travel over that same telemetry, and logging it into
+  // OTel could loop (a failed export logs, the log exports, and fails).
+  OTelAPI.setErrorHandler((error, stack) {
+    stderr.writeln('OpenTelemetry reported: $error');
+    if (stack != null) stderr.writeln(stack);
+  });
 
   await OTel.initialize(
     serviceName: serviceName,
@@ -208,6 +210,24 @@ Sampler _samplerFromEnv(String? name, double ratio, Logger logger) {
       );
       return ParentBasedSampler(TraceIdRatioSampler(ratio));
   }
+}
+
+/// The sampling ratio to run with: [requested], or [defaultSamplingRatio]
+/// when none was requested. Telemetry never throws: a ratio outside
+/// 0.0 to 1.0 is reported to the OpenTelemetry error handler and the
+/// default used, as the spec says for an invalid OTEL_TRACES_SAMPLER_ARG.
+double samplingRatioFor(double? requested) {
+  final ratio = requested ?? defaultSamplingRatio;
+  if (ratio >= 0.0 && ratio <= 1.0) return ratio;
+  OTelErrorHandling.report(
+    ArgumentError.value(
+      ratio,
+      'samplingRatio',
+      'must be between 0.0 and 1.0 inclusive; using $defaultSamplingRatio',
+    ),
+    StackTrace.current,
+  );
+  return defaultSamplingRatio;
 }
 
 double? _parseDouble(String? raw) {

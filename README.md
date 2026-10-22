@@ -74,12 +74,12 @@ Context is how the three Signals stay correlated.
   - **Baggage** — your own key/value pairs that ride along with the trace request. These are propagated by `dartastic_opetelemetry`'s BaggagePropagator.
   Baggage is not used often but useful for things every service should be able to see. Here are some common, practical baggage properties:
     
-      | Key                   | Example value  | Why it’s useful                                         |
-      |-----------------------|----------------|---------------------------------------------------------|
-      | `user.role`           | `"admin"`      | Authorization / audit context                           |
-      | `discount.pct`        | `"15"`         | Calculated value that later services need               |
-      | `feature.flag.new_ui` | `"enabled"`    | Propagate A/B or feature-flag decisions                 |
-      | `debug.verbose`       | `"true"`       | Force detailed logging for this request only            |
+      | Key                   | Example value | Why it’s useful                              |
+      |-----------------------|---------------|----------------------------------------------|
+      | `user.role`           | `"admin"`     | Authorization / audit context                |
+      | `discount.pct`        | `"15"`        | Calculated value that later services need    |
+      | `feature.flag.new_ui` | `"enabled"`   | Propagate A/B or feature-flag decisions      |
+      | `debug.verbose`       | `"true"`      | Force detailed logging for this request only |
     
     - Keep baggage small: it is copied onto every downstream request. 
     - Baggage is not encrypted and is visible in headers, so only put data in baggage that you are happy to send to every downstream service.
@@ -91,13 +91,13 @@ Context is how the three Signals stay correlated.
     every semantic convention, automatically generated from the OTel spec.
   - Examples:
     
-    | Dart Enum               | Attribute name         | Description                      |
-    |-------------------------|------------------------|----------------------------------|
-    | `Http.httpMethod`       | 'http.method'          | HTTP request method              |
-    | `User.userId`           | 'user.id'              | Identifier for an end user       |
-    | `K8s.k8sClusterName`    | 'k8s.cluster.name'     | Name of a Kubernetes cluster     |
-    | `Db.dbTable`            | 'db.collection.name'   | Name of a database table         |
-    | `Geo.geoCountryIsoCode` | 'geo.country.iso_code' | ISO Country Code                 |
+    | Dart Enum               | Attribute name         | Description                  |
+    |-------------------------|------------------------|------------------------------|
+    | `Http.httpMethod`       | 'http.method'          | HTTP request method          |
+    | `User.userId`           | 'user.id'              | Identifier for an end user   |
+    | `K8s.k8sClusterName`    | 'k8s.cluster.name'     | Name of a Kubernetes cluster |
+    | `Db.dbTable`            | 'db.collection.name'   | Name of a database table     |
+    | `Geo.geoCountryIsoCode` | 'geo.country.iso_code' | ISO Country Code             |
   
   - **AI understands the Semantic Conventions, making runtime analysis with AI very productive.**
   
@@ -105,13 +105,13 @@ Context is how the three Signals stay correlated.
 - **Resource Attributes** are special attributes describing *what is emitting*, not what happened. The values are 
   computed once at initialization, then attached to everything.
   
-  | Dart Enum                              | Attribute name                | Description                                      |
-  |----------------------------------------|-------------------------------|--------------------------------------------------|
-  | `Deployment.deploymentEnvironmentName` | `deployment.environment.name` | Deployment environment (production, staging…)    |
-  | `Host.hostArch`                        | `host.arch`                   | CPU architecture of the host                     |
-  | `Cloud.cloudRegion`                    | `cloud.region`                | Cloud region (e.g. `us-east-1`, `europe-west1`)  |
-  | `Device.deviceId`                      | `device.id`                   | Unique identifier of the device                  |
-  | `Device.deviceManufacturer`            | `device.manufacturer`         | Device manufacturer (Apple, Samsung, Google…)    |
+  | Dart Enum                              | Attribute name                | Description                                     |
+  |----------------------------------------|-------------------------------|-------------------------------------------------|
+  | `Deployment.deploymentEnvironmentName` | `deployment.environment.name` | Deployment environment (production, staging…)   |
+  | `Host.hostArch`                        | `host.arch`                   | CPU architecture of the host                    |
+  | `Cloud.cloudRegion`                    | `cloud.region`                | Cloud region (e.g. `us-east-1`, `europe-west1`) |
+  | `Device.deviceId`                      | `device.id`                   | Unique identifier of the device                 |
+  | `Device.deviceManufacturer`            | `device.manufacturer`         | Device manufacturer (Apple, Samsung, Google…)   |
 
   - Resources are collected automatically in `OTel.initialize()` but additional resources can be added to the set and passed
     into the call.  The example Flutter app shows how `device_info_plus` and `package_info_plus` are used to initialize with 
@@ -739,11 +739,11 @@ Dockerfile or a Functions entry shim. The telemetry destination is selected
 entirely by `OTEL_*` environment variables — there is **no code change
 between backends.**
 
-| Runtime                         | weather_api | cache_service | Notes                              |
-|---------------------------------|-------------|---------------|------------------------------------|
-| Local Docker Compose            | container   | container     | Bundled with Grafana LGTM stack    |
-| Google Cloud Run                | service     | service       | Service-to-service via internal URL|
-| Dart Cloud Functions (Gen 2)    | function    | function      | Function-to-function via HTTPS     |
+| Runtime                      | weather_api | cache_service | Notes                               |
+|------------------------------|-------------|---------------|-------------------------------------|
+| Local Docker Compose         | container   | container     | Bundled with Grafana LGTM stack     |
+| Google Cloud Run             | service     | service       | Service-to-service via internal URL |
+| Dart Cloud Functions (Gen 2) | function    | function      | Function-to-function via HTTPS      |
 
 ## System architecture
 
@@ -833,13 +833,13 @@ Backend selection is purely env-var driven — **no code change between
 backends.** The Dartastic SDK reads the standard `OTEL_*_EXPORTER`
 variables and dispatches to the appropriate exporter at startup.
 
-| Backend                     | `OTEL_TRACES_EXPORTER` | Endpoint env var                            |
-| --------------------------- | ---------------------- | ------------------------------------------- |
-| Grafana LGTM (local)        | `otlp` (default)       | `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` |
-| stdout / debugging          | `console`              | (none — writes to the process's stdout)     |
-| Disabled (CI, fast tests)   | `none`                 | (none — no spans exported)                  |
-| Google Cloud Operations     | `otlp` (default)       | `OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com:443` |
-| Any other OTLP backend      | `otlp` (default)       | `OTEL_EXPORTER_OTLP_ENDPOINT=https://your-backend.example` |
+| Backend                   | `OTEL_TRACES_EXPORTER` | Endpoint env var                                                   |
+|---------------------------|------------------------|--------------------------------------------------------------------|
+| Grafana LGTM (local)      | `otlp` (default)       | `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`                |
+| stdout / debugging        | `console`              | (none — writes to the process's stdout)                            |
+| Disabled (CI, fast tests) | `none`                 | (none — no spans exported)                                         |
+| Google Cloud Operations   | `otlp` (default)       | `OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com:443` |
+| Any other OTLP backend    | `otlp` (default)       | `OTEL_EXPORTER_OTLP_ENDPOINT=https://your-backend.example`         |
 
 For example, to print every span to stdout (handy when iterating on
 instrumentation without bringing up the full stack):
@@ -963,12 +963,49 @@ These are demo-time conveniences. They never run in a production deployment.
 - **Pre-built Grafana dashboard JSON** in `dashboards/grafana/`,
   auto-loaded into the local stack's Grafana container.
 
-## Error handling (planned)
+## Telemetry never throws
 
-[ERROR_HANDLING.md](ERROR_HANDLING.md) is the implementation brief for
-demonstrating the OTel error-handling contract (`OTel.setErrorHandler`,
-strict mode, isolate propagation) — gated on the next
-`dartastic_opentelemetry_api` / SDK releases.
+Telemetry can't be allowed to break the app it watches, so, as the
+[OpenTelemetry error-handling spec][error-handling] requires, no
+telemetry call throws at run time. When the SDK or the demo's own
+telemetry code can't do something (a setting out of range, a failed
+export, flush or shutdown), it reports the error to the
+**OpenTelemetry error handler** (`OTelErrorHandling.report`) and carries
+on without that piece: the attribute is left off, the record dropped,
+the default used. In this demo, `weather_otel` reports an out-of-range
+sampling ratio and runs with the default (`samplingRatioFor`), and its
+`forceFlush` and `shutdown` report a failure instead of throwing it at
+the caller.
+
+The app's own errors are a different matter. Instrumentation records
+them on the span and passes them on unchanged, so telemetry never
+swallows them either: `weather_api`'s 404 for an unknown city reaches
+its span through the SDK's `SpanExceptionOptions` (record the
+exception, set the status), not through the error handler. The two are
+complementary: `SpanExceptionOptions` puts your app's errors on spans,
+and the error handler receives the library's own reports.
+
+Install the handler once, before initializing, with
+`OTelAPI.setErrorHandler`. It should log **outside** OpenTelemetry: a
+report that telemetry is failing can't travel over that same telemetry,
+and logging it there can loop (a failed export logs, the log exports,
+and that fails too). The services' bootstrap (`weather_otel`) writes to
+stderr, and the Flutter app to the console with `debugPrint`:
+
+```dart
+OTelAPI.setErrorHandler((error, stack) {
+  stderr.writeln('OpenTelemetry reported: $error');
+  if (stack != null) stderr.writeln(stack);
+});
+```
+
+It is the only log the demo writes outside OpenTelemetry. A handler
+replaces the default, which logs through `OTelLog`, and a handler that
+throws propagates on purpose: that is the spec's strict mode, for
+development. What the demo doesn't show yet is in
+[ERROR_HANDLING.md](ERROR_HANDLING.md).
+
+[error-handling]: https://opentelemetry.io/docs/specs/otel/error-handling/
 
 ## Quick links
 

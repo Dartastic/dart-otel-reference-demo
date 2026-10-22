@@ -63,7 +63,8 @@ class WeatherOtelHandle {
 
   /// Forces every span processor (and meter / log processor) to flush
   /// buffered data to its exporter. Returns when the flush completes
-  /// or fails.
+  /// or fails. Telemetry never throws: a failure is reported to the
+  /// OpenTelemetry error handler, never to the caller.
   ///
   /// Useful in throughput demos and immediately before exit; production
   /// paths should rely on the batch processors' own scheduling.
@@ -73,8 +74,7 @@ class WeatherOtelHandle {
       await OTel.meterProvider().forceFlush();
       await OTel.loggerProvider().forceFlush();
     } on Object catch (e, st) {
-      _logger.warning('forceFlush failed', e, st);
-      rethrow;
+      OTelErrorHandling.report(e, st);
     }
   }
 
@@ -110,7 +110,7 @@ class WeatherOtelHandle {
     try {
       await OTel.shutdown();
     } on Object catch (e, st) {
-      _logger.warning('OTel.shutdown failed', e, st);
+      OTelErrorHandling.report(e, st);
     }
     _logger.info('OpenTelemetry SDK shutdown complete');
   }

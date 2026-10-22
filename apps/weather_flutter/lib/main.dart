@@ -185,8 +185,8 @@ void main() {
   );
 }
 
-/// Sends `package:logging` records and the SDK's own diagnostics to one
-/// visible sink.
+/// Sends `package:logging` records, the SDK's own diagnostics and the
+/// OpenTelemetry error handler's reports to one visible sink.
 ///
 /// The Flutter counterpart of `_configureLogging()` in
 /// `services/weather_api/bin/server.dart`, using `debugPrint` because
@@ -210,6 +210,17 @@ void _configureLogging() {
   // SDK diagnostics: export failures, retries, config resolution.
   OTelLog.currentLevel = LogLevel.info;
   OTelLog.logFunction = debugPrint;
+
+  // Telemetry never throws: what the SDK cannot do (a bad setting, a
+  // failed export) is reported to this handler instead. Installed before
+  // OTel.initialize so nothing initialize reports is missed. It prints to
+  // the console, never through OpenTelemetry: a report that telemetry is
+  // failing can't travel over that same telemetry, and logging it into
+  // OTel could loop (a failed export logs, the log exports, and fails).
+  OTelAPI.setErrorHandler((error, stack) {
+    debugPrint('OpenTelemetry reported: $error');
+    if (stack != null) debugPrint('$stack');
+  });
 }
 
 /// Shown when initialization throws, so the failure is on screen instead

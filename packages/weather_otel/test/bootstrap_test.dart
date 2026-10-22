@@ -123,31 +123,23 @@ void main() {
   });
 
   group('initializeOtel argument validation', () {
-    // These tests must throw BEFORE reaching `await OTel.initialize` —
-    // the SDK can only be initialized once per process and is already
-    // initialized by setUpAll above. Validation that throws first is
-    // therefore safe to test here; anything that gets past validation
-    // would crash the suite.
-    test('rejects samplingRatio greater than 1.0', () {
-      expect(
-        () => initializeOtel(
-          serviceName: 'x',
-          serviceVersion: '1',
-          samplingRatio: 1.5,
-        ),
-        throwsArgumentError,
-      );
-    });
+    // Telemetry never throws. An invalid ratio is reported to the
+    // OpenTelemetry error handler and the default used. Tested through
+    // samplingRatioFor, because initializeOtel can only run once per
+    // process (setUpAll above).
+    for (final bad in [1.5, -0.1]) {
+      test('reports samplingRatio $bad and runs with the default', () {
+        final reported = <Object>[];
+        OTelAPI.setErrorHandler((error, stack) => reported.add(error));
+        addTearDown(OTelErrorHandling.resetToDefault);
+        expect(samplingRatioFor(bad), defaultSamplingRatio);
+        expect(reported, [isA<ArgumentError>()]);
+      });
+    }
 
-    test('rejects negative samplingRatio', () {
-      expect(
-        () => initializeOtel(
-          serviceName: 'x',
-          serviceVersion: '1',
-          samplingRatio: -0.1,
-        ),
-        throwsArgumentError,
-      );
+    test('a valid or absent samplingRatio is used as it is', () {
+      expect(samplingRatioFor(0.25), 0.25);
+      expect(samplingRatioFor(null), defaultSamplingRatio);
     });
 
     test('accepts a non-numeric OTEL_TRACES_SAMPLER_ARG by ignoring it', () {
