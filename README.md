@@ -676,16 +676,39 @@ target you can read or copy from this repo.
 
 ### Logs
 
-- **OTel logs SDK integration via a `package:logging` bridge.**
-  `weather_otel`'s bootstrap forwards every `package:logging`
-  record through the OTel logs SDK so entries flow over OTLP
-  with the active span's trace_id and span_id attached, while
-  the application's own stdout listener keeps printing locally
-  (additive, not a replacement). Each `Logger` becomes its own
-  OTel instrumentation scope by name. The bridge is the published
-  [`otel_logging`](https://pub.dev/packages/otel_logging) package —
-  `PackageLoggingBridge.install()` at startup, `uninstall()` before
-  SDK shutdown — so any app can drop in the same one-liner.
+- **Log with `package:logging`, bridged to the OTel Logs signal.**
+  `package:logging` is the Dart team's logging package and the most used
+  one on pub.dev (about 12 million downloads a month), so it is what
+  your libraries already log with. `weather_otel`'s bootstrap installs
+  [`otel_logging`](https://pub.dev/packages/otel_logging)'s bridge,
+  `PackageLoggingBridge.install()`, which turns every record into an
+  OTel log record: the level becomes the severity, an error and stack
+  become `exception.*` attributes, and the record carries the active
+  span's trace and span ids. Each `Logger` becomes its own
+  instrumentation scope by name. The app's own console listener keeps
+  printing; the bridge is additive. `uninstall()` before SDK shutdown.
+- **The same thing, by hand: `weather_cli`.** The CLI skips the
+  published bridge and wires it in plain code,
+  [`apps/weather_cli/lib/src/log_bridge.dart`](apps/weather_cli/lib/src/log_bridge.dart),
+  so you can see what the bridge does. It also captures `print` with a
+  Zone override: each line still reaches the console and becomes an OTel
+  log record at INFO. (The SDK can capture `print` too:
+  `OTel.initialize(logPrint: true)` with `OTel.runWithPrintInterception`.)
+- **Capturing the console without looping.** Once console output is
+  logged to OTel, OTel's own messages could feed back into it. Three
+  rules stop that, and the CLI's tests prove them:
+  1. The OpenTelemetry error handler and the SDK's diagnostics
+     (`OTelLog.logFunction`, which defaults to `print`) write to stderr,
+     which is not captured: a report that telemetry is failing can't
+     travel over it.
+  2. While a record is being emitted, anything printed in that same call
+     reaches the console but is not captured again (a zone flag marks
+     the emit).
+  3. The SDK's own diagnostics are never bridged.
+
+  The `otel_` logging wrappers (`otel_logging` and the others) are
+  adding `print`, stdout and stderr capture with these rules built in;
+  once released, installing the wrapper does this for you.
 
 ### Backend selection
 

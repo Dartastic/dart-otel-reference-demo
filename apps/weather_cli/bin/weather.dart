@@ -13,11 +13,15 @@ import 'package:weather_cli/weather_cli.dart';
 import 'package:weather_otel/weather_otel.dart';
 
 void main(List<String> args) {
-  runWithOtelErrorHandlers(() async {
-    final code = await runWeatherCli(args);
-    // Use `exitCode` rather than `exit(code)` so any pending I/O on
-    // stdout or stderr drains before the process terminates. The
-    // Dart VM exits with this code once the event loop is empty.
-    exitCode = code;
-  });
+  // captureConsole: every `print` in the run also becomes an OTel log
+  // record once the hand-wired bridge is installed (lib/src/log_bridge.dart).
+  runWithOtelErrorHandlers(
+    () => captureConsole(() async {
+      final code = await runWeatherCli(args);
+      // Use `exitCode` rather than `exit(code)` so any pending I/O on
+      // stdout or stderr drains before the process terminates. The
+      // Dart VM exits with this code once the event loop is empty.
+      exitCode = code;
+    }),
+  );
 }

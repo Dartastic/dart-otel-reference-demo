@@ -9,5 +9,7 @@
 /// drive the same code paths the binary does.
 library;
 
+export 'src/log_bridge.dart'
+    show captureConsole, installLogBridgeByHand, uninstallLogBridgeByHand;
 export 'src/output.dart' show renderJson, renderText;
 export 'src/run.dart' show exitFailure, exitOk, exitUsage, runWeatherCli;

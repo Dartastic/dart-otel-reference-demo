@@ -14,6 +14,7 @@ import 'package:weather_core/weather_core.dart';
 import 'package:weather_http_kit/weather_http_kit.dart';
 import 'package:weather_otel/weather_otel.dart';
 
+import 'log_bridge.dart';
 import 'output.dart';
 
 const String _serviceName = 'weather-cli';
@@ -128,7 +129,12 @@ Future<int> runWeatherCli(
   final otel = await initializeOtel(
     serviceName: _serviceName,
     serviceVersion: _serviceVersion,
+    // The CLI bridges package:logging into the OTel Logs signal by hand
+    // (log_bridge.dart), to show how it's done; the services use the
+    // published otel_logging bridge this flag would install.
+    bridgePackageLogging: false,
   );
+  installLogBridgeByHand();
 
   // Outbound HTTP client. InstrumentedHttpClient emits the client span
   // and injects W3C trace context — that's what stitches the CLI's
@@ -229,6 +235,9 @@ Future<int> runWeatherCli(
         });
   } finally {
     rootSpan.end();
+    // Before shutdown, so nothing logged from here on meets a closed
+    // logs pipeline.
+    await uninstallLogBridgeByHand();
     await otel.shutdown();
     outboundClient.close();
   }
