@@ -429,6 +429,50 @@ Tempo** and pick a trace.
 Full walkthrough — what to look for in the trace tree, how to drive it from the CLI, how to tear it down 
 is described in [deploy/local/README.md](./deploy/local/README.md).
 
+## Security and tokens
+
+This demo is basic, but it means to show best practices, secure ones
+included.
+
+As shipped, it needs no tokens: it exports to the local collector in
+the stack, which takes telemetry without authentication. A real backend
+usually wants a token, passed in the standard
+`OTEL_EXPORTER_OTLP_HEADERS` (for example
+`authorization=Bearer <token>`). That is where tokens leak: left in a
+`.env` file, in a shell's history or profile, or worse, committed to a
+repository.
+
+So don't do this:
+
+```shell
+export OTEL_EXPORTER_OTLP_HEADERS="authorization=Bearer abc123..."
+dart run services/weather_api/bin/server.dart
+```
+
+Keep the token in a secret manager instead, and let it pass the token
+to the one process that needs it. With the open source
+[Infisical](https://infisical.com/docs/documentation/guides/local-development),
+for example:
+
+```shell
+infisical run --env=dev -- dart run services/weather_api/bin/server.dart
+```
+
+A secret manager keeps each environment's secrets (development,
+testing, production) consistent, can sync them to your cloud's own
+store (AWS Secrets Manager, GCP Secret Manager, Azure Key Vault), and is
+a safe way to share secrets with teammates and AI agents. Besides
+Infisical, popular choices include
+[HashiCorp Vault](https://www.hashicorp.com/en/products/vault),
+[Doppler](https://doppler.com),
+[Bitwarden Secrets Manager](https://bitwarden.com) and
+[1Password](https://1password.com).
+
+A Flutter app is different: whatever you build into it, a user can read
+back out. Only put a token in an app if the backend accepts it from
+untrusted clients, for example a browser token limited to ingest from
+your own origins, and never a key that can read your data.
+
 ## Package layout
 
 Every package depends on the Dartastic OpenTelemetry **SDK**
